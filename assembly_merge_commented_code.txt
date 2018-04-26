@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Code to merge the coastal and inland transcriptomes.
+# We will run orthomerge to merge these transcriptomes by using the full, cleaned dataset.
+
+# starting directory: molly/
+
+mkdir merge
+
+# copy all cleaned reads to new merge folder
+cp coastal/cleaned.coastal* merge/
+cp inland/cleaned.inland* merge/
+
+# copy the orthomerged assemblies for coastal and inland reads
+cp coastal/assemblies/coastalsubsamp.orthomerged.fasta
+cp inland/assemblies/inlandsubsamp.orthomerged.fasta
+
+cd merge/
+
+for i in *1P.fastq; do cat $i; echo; done > all.cleaned.1P.fq
+for i in *2P.fastq; do cat $i; echo; done > all.cleaned.2P.fq
+
