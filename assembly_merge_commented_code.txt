@@ -1,22 +1,46 @@
 #!/bin/bash
 
 # Code to merge the coastal and inland transcriptomes.
-# We will run orthomerge to merge these transcriptomes by using the full, cleaned dataset.
+# We will run orthomerge to merge these transcriptomes by using the reads used to build the assemblies, and then also the full, cleaned dataset.
 
 # starting directory: molly/
 
-mkdir merge
+mkdir merged
+mkdir merged/fastas
+mkdir merged/reads
+
+# copy assembly reads to new merge folder
+cp coastal/subsamp* merged/reads/
+cp inland/subsamp* merged/reads/
 
 # copy all cleaned reads to new merge folder
-cp coastal/cleaned.coastal* merge/
-cp inland/cleaned.inland* merge/
+cp coastal/cleaned.coastal* merged/reads
+cp inland/cleaned.inland* merged/reads
 
 # copy the orthomerged assemblies for coastal and inland reads
-cp coastal/assemblies/coastalsubsamp.orthomerged.fasta
-cp inland/assemblies/inlandsubsamp.orthomerged.fasta
+cp coastal/assemblies/coastalsubsamp.orthomerged.fasta merged/fastas/
+cp inland/assemblies/inlandsubsamp.orthomerged.fasta merged/fastas/
 
-cd merge/
+cd merge/reads
 
-for i in *1P.fastq; do cat $i; echo; done > all.cleaned.1P.fq
-for i in *2P.fastq; do cat $i; echo; done > all.cleaned.2P.fq
+# concatenate subsampled reads
+for i in subsamp*1P.fastq; do cat $i; echo; done > assembly.reads.1P.fq
+for i in subsamp*2P.fastq; do cat $i; echo; done > assembly.reads.2P.fq
 
+# concatenate all cleaned reads
+for i in cleaned*1P.fastq; do cat $i; echo; done > all.cleaned.1P.fq
+for i in cleaned*2P.fastq; do cat $i; echo; done > all.cleaned.2P.fq
+
+# Run orthofuser using just the reads used to make the assemblies
+/home/summersk/programs/Oyster_River_Protocol/orthofuser.mk all \
+READ1=reads/assembly.reads.1P.fq \
+READ2=reads/assembly.reads.2P.fq \
+CPU=30 RUNOUT=ortho_assembly_reads \
+FASTADIR=merged_fastas/ LINEAGE=eukaryota_odb9
+
+# Run orthofuser using all of the cleaned reads in the dataset
+/home/summersk/programs/Oyster_River_Protocol/orthofuser.mk all \
+READ1=reads/all.cleaned.1P.fq \
+READ2=reads/all.cleaned.2P.fq \
+CPU=30 RUNOUT=ortho_all_cleaned \
+FASTADIR=merged_fastas/ LINEAGE=eukaryota_odb9
