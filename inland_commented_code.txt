@@ -63,14 +63,14 @@ samples=$(ls reads/*fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g")
 
 # Run trimmomatic
 cd reads
-(ls *fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g") | \
+(ls *fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g" | uniq) | \
 parallel -j 10 trimmomatic-0.36.jar PE -threads 4 \
 -baseout /home/summersk/molly/inland/rcorr/{}.TRIM.fastq {}R1_001.fastq {}R2_001.fastq \
 LEADING:3 TRAILING:3 ILLUMINACLIP:barcodes.fa:2:30:10 MINLEN:25 
 
 # R corrector  
 cd ..
-(ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq | grep -v subsamp) | \
+(ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq) | \
 parallel -j 6 run_rcorrector.pl -t 4 -k 31 -1 {}.TRIM_1P.fastq -2 {}.TRIM_2P.fastq -od rcorr
 
 # concatenate all the cleaned inland reads

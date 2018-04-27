@@ -58,7 +58,7 @@ rm coastal.zero* coastal.four* subsamp.coastal.zero* subsamp.coastal.four*
 ### Trim and clean sample reads
 
 # Remove adaptors and trim the reads from each sample, first get the samples
-samples=$(ls reads/*fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g")
+samples=$(ls reads/*fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g" | uniq)
 
 # Run trimmomatic
 cd reads/
@@ -69,7 +69,7 @@ LEADING:3 TRAILING:3 ILLUMINACLIP:barcodes.fa:2:30:10 MINLEN:25
 
 # R corrector  
 cd ..
-(ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq | grep -v subsamp) | \
+(ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq) | \
 parallel -j 6 run_rcorrector.pl -t 4 -k 31 -1 {}.TRIM_1P.fastq -2 {}.TRIM_2P.fastq -od rcorr
 
 # concatenate all the cleaned coastal reads
