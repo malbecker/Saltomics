@@ -62,9 +62,9 @@ samples=$(ls reads/*fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g" | 
 
 # Run trimmomatic
 cd reads/
-(ls *fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g") | \
-parallel -j 3 trimmomatic-0.36.jar PE -threads 4 \
--baseout /home/summersk/molly/coastal/rcorr/{}.TRIM.fastq {}R1_001.fastq {}R2_001.fastq \
+(ls *fastq | sed "s/_R1_001.fastq//g" | sed "s/_R2_001.fastq//g") | \
+parallel -j 5 trimmomatic-0.36.jar PE -threads 4 \
+-baseout /home/summersk/molly/coastal/rcorr/{}.TRIM.fastq {}_R1_001.fastq {}_R2_001.fastq \
 LEADING:3 TRAILING:3 ILLUMINACLIP:barcodes.fa:2:30:10 MINLEN:25 
 
 # R corrector  

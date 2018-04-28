@@ -59,18 +59,18 @@ RUNOUT=inlandsubsamp
 ### Trim and clean sample reads
 
 # Remove adaptors and trim the reads from each sample, first get the samples
-samples=$(ls reads/*fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g")
+samples=$(ls reads/*fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g" | uniq)
 
 # Run trimmomatic
 cd reads
-(ls *fastq | sed "s/R1_001.fastq//g" | sed "s/R2_001.fastq//g" | uniq) | \
-parallel -j 10 trimmomatic-0.36.jar PE -threads 4 \
--baseout /home/summersk/molly/inland/rcorr/{}.TRIM.fastq {}R1_001.fastq {}R2_001.fastq \
+(ls *fastq | sed "s/_R1_001.fastq//g" | sed "s/_R2_001.fastq//g") | \
+parallel -j 5 trimmomatic-0.36.jar PE -threads 4 \
+-baseout /home/summersk/molly/coastal/rcorr/{}.TRIM.fastq {}_R1_001.fastq {}_R2_001.fastq \
 LEADING:3 TRAILING:3 ILLUMINACLIP:barcodes.fa:2:30:10 MINLEN:25 
 
 # R corrector  
 cd ..
-(ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq) | \
+(ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq | grep -v subsamp) | \
 parallel -j 6 run_rcorrector.pl -t 4 -k 31 -1 {}.TRIM_1P.fastq -2 {}.TRIM_2P.fastq -od rcorr
 
 # concatenate all the cleaned inland reads
