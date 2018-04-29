@@ -73,9 +73,11 @@ cd ..
 (ls rcorr/*P.fastq | sed "s/.TRIM_1P.fastq//g" | sed "s/.TRIM_2P.fastq//g"  | uniq | grep -v inlandsubsamp) | \
 parallel -j 6 run_rcorrector.pl -t 4 -k 31 -1 {}.TRIM_1P.fastq -2 {}.TRIM_2P.fastq 
 
+mv *cor.fq rcorr/
+
 # concatenate all the cleaned inland reads
 
-for i in rcorr/*1P.cor.fq; do cat $i; echo; done > cleaned.inland.1P.fastq
+for i in rcorr/*1P.cor.fq; do cat $i; echo; done > cleaned.inland.1P.fastq &
 for i in rcorr/*2P.cor.fq; do cat $i; echo; done > cleaned.inland.2P.fastq
 
 # Done with inland assembly; move on to merge the coastal and inland assemblies

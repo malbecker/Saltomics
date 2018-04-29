@@ -10,33 +10,43 @@ mkdir merged/fastas
 mkdir merged/reads
 
 # copy assembly reads to new merge folder
-cp coastal/subsamp* merged/reads/
-cp inland/subsamp* merged/reads/
+cp coastal/rcorr/coastalsubsamp*cor.fq merged/reads/
+cp inland/rcorr/inlandsubsamp*cor.fq merged/reads/
 
 # copy all cleaned reads to new merge folder
-cp coastal/cleaned.coastal* merged/reads
-cp inland/cleaned.inland* merged/reads
+mv coastal/cleaned.coastal* merged/reads
+mv inland/cleaned.inland* merged/reads
 
 # copy the orthomerged assemblies for coastal and inland reads
 cp coastal/assemblies/coastalsubsamp.orthomerged.fasta merged/fastas/
 cp inland/assemblies/inlandsubsamp.orthomerged.fasta merged/fastas/
 
-cd merge/reads
+cd merged/reads
 
 # concatenate subsampled reads
-for i in subsamp*1P.fastq; do cat $i; echo; done > assembly.reads.1P.fq
-for i in subsamp*2P.fastq; do cat $i; echo; done > assembly.reads.2P.fq
+for i in *subsamp*1P.cor.fq; do cat $i; echo; done > assembly.reads.1P.fq
+for i in *subsamp*2P.cor.fq; do cat $i; echo; done > assembly.reads.2P.fq
 
 # concatenate all cleaned reads
 for i in cleaned*1P.fastq; do cat $i; echo; done > all.cleaned.1P.fq
 for i in cleaned*2P.fastq; do cat $i; echo; done > all.cleaned.2P.fq
 
+# Merging assemblies will fail because there are 2 assemblies with repeat transcript names; rename transcripts
+cd ../fastas
+awk '/^>/{print ">Coastal_" ++i; next}{print}'  coastalsubsamp.orthomerged.fasta > coastalsubsamp.orthomerged.renamed.fasta
+awk '/^>/{print ">Inland_" ++i; next}{print}'  inlandsubsamp.orthomerged.fasta > inlandsubsamp.orthomerged.renamed.fasta
+
+# delete assmeblies without the proper naming scheme
+rm *merged.fasta
+
+cd ..
+
 # Run orthofuser using just the reads used to make the assemblies
 /home/summersk/programs/Oyster_River_Protocol/orthofuser.mk all \
 READ1=reads/assembly.reads.1P.fq \
 READ2=reads/assembly.reads.2P.fq \
-CPU=30 RUNOUT=ortho_assembly_reads \
-FASTADIR=merged_fastas/ LINEAGE=eukaryota_odb9
+CPU=26 RUNOUT=ortho_assembly_reads \
+FASTADIR=fastas/ LINEAGE=eukaryota_odb9
 
 # Run orthofuser using all of the cleaned reads in the dataset
 /home/summersk/programs/Oyster_River_Protocol/orthofuser.mk all \
