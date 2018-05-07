@@ -1,0 +1,154 @@
+#!/bin/bash
+
+# Code to clean reads and annotate a transcriptome
+
+# starting directory: molly/
+
+cp assemblies/100Mrun.orthomerged.fasta .
+
+# Rename all the transcripts because aesthetics.
+awk '/^>/{print ">Transcript_" ++i; next}{print}'  100Mrun.orthomerged.fasta > 100Mrun.cinerea.fasta
+
+
+# Pseudo-quantification with kallisto, build the index first
+kallisto index -i cinerea.idx  100Mrun.cinerea.fasta
+
+# This will list all the samples
+cd inland/rcorr/
+inlsamples=$(ls *P.cor.fq | sed "s/.TRIM_1P.cor.fq//g" | sed "s/.TRIM_2P.cor.fq//g" | uniq  | grep -v subsamp)
+
+cd ../../coastal/rcorr
+coastsamples=$(ls *P.cor.fq | sed "s/.TRIM_1P.cor.fq//g" | sed "s/.TRIM_2P.cor.fq//g" | uniq  |
+grep -v subsamp)
+
+cd ../../
+
+# Make directories for each sample:
+mkdir kallisto_quants
+cd kallisto_quants
+for i in $inlsamples; do mkdir $i; done
+for i in $coastsamples; do mkdir $i; done
+cd ..
+
+
+# Perform the actual pseudo-quantification for all of the samples + technical replicates
+
+parallel -j 10 kallisto quant -i /home/summersk/molly/cinerea.idx -o kallisto_quants/{} -b 100 \
+inland/rcorr/{}.TRIM_1P.cor.fq inland/rcorr/{}.TRIM_2P.cor.fq ::: $inlsamples
+
+parallel -j 16 kallisto quant -i /home/summersk/molly/cinerea.idx -o kallisto_quants/{} -b 100 \
+coastal/rcorr/{}.TRIM_1P.cor.fq coastal/rcorr/{}.TRIM_2P.cor.fq ::: $coastsamples
+
+#### Annotation with diamond to amphibian (xenopus, nanorana, rana peptides) + UniRef90 databases
+
+# cat all peptides together (, makedb in diamond
+cat GCA_002284835.2_RCv2.1_protein.faa Nanorana_parkeri.gene.v2.pep uniref90.fasta Xenopus_tropicalis.JGI_4.2.pep.all.fa > all_peptides.fa
+  
+  
+  diamond makedb --in all_peptides.fa -d allpep
+  diamond blastx -d /home/summersk/peptide_databases/allpep.dmnd -q 100Mrun.cinerea.fasta -o cinerea2allpep.m8 --threads 32 
+# 35,089 queries aligned
+
+# sort by top hit
+sort cinerea2allpep.m8 -k 1,1 -k11,11g | sort -u -k 1,1 --merge > cinereaallpep_tophit.txt
+
+# xenopus only...
+diamond blastx -d /home/summersk/peptide_databases/xen.dmnd -q 100Mrun.cinerea.fasta -o cinerea2xen.m8 --threads 32 
+# 31,442 queries aligned
+
+# sort by top hit
+sort cinerea2xen.m8 -k 1,1 -k11,11g | sort -u -k 1,1 --merge > cinerea2xen_tophit.txt
+
+# Transcriptome = 90,399 transcripts
+# Full annotation rate: 38.8%
+# Xenopus annotation rate: 34.78%
+
+# try to get better transcriptome and annotation rates 
+cp orthofuse/100Mrun/merged/merged/good.merged.fasta .
+
+# Rename all the transcripts because aesthetics.
+awk '/^>/{print ">Transcript_" ++i; next}{print}'  good.merged.fasta > 100Mrun.good.fasta
+
+
+# Pseudo-quantification with kallisto, build the index first
+kallisto index -i goodcinerea.idx  100Mrun.good.fasta
+
+# Make directories for each sample:
+mkdir good_kallisto_quants
+cd good_kallisto_quants
+for i in $inlsamples; do mkdir $i; done
+for i in $coastsamples; do mkdir $i; done
+cd ..
+
+
+# Perform the actual pseudo-quantification for all of the samples + technical replicates
+
+parallel -j 16 kallisto quant -i /home/summersk/molly/goodcinerea.idx -o good_kallisto_quants/{} -b 100 \
+inland/rcorr/{}.TRIM_1P.cor.fq inland/rcorr/{}.TRIM_2P.cor.fq ::: $inlsamples
+
+parallel -j 16 kallisto quant -i /home/summersk/molly/goodcinerea.idx -o good_kallisto_quants/{} -b 100 \
+coastal/rcorr/{}.TRIM_1P.cor.fq coastal/rcorr/{}.TRIM_2P.cor.fq ::: $coastsamples
+
+
+
+
+
+
+
+# See how much of a hit the BUSCO scores take
+python /home/summersk/programs/busco/scripts/run_BUSCO.py -i 100Mrun.good.fasta -m transcriptome --cpu 24 -l /home/summersk/busco_dbs/eukaryota_odb9 -o good_busco
+
+diamond blastx -d /home/summersk/peptide_databases/allpep.dmnd -q 100Mrun.good.fasta -o cinerea2allpep.m8 --threads 32 
+# 55,631 queries aligned = 44.1% annotation rate
+
+# sort by top hit
+sort cinerea2allpep.m8 -k 1,1 -k11,11g | sort -u -k 1,1 --merge > cinereaallpep_tophit.txt
+
+# xenopus only...
+diamond blastx -d /home/summersk/peptide_databases/xen.dmnd -q 100Mrun.cinerea.fasta -o cinerea2xen.m8 --threads 32 
+# 31,442 queries aligned
+
+# sort by top hit
+sort cinerea2xen.m8 -k 1,1 -k11,11g | sort -u -k 1,1 --merge > cinerea2xen_tophit.txt
+
+# Transcriptome = 90,399 transcripts
+# Full annotation rate: 38.8%
+# Xenopus annotation rate: 34.78%
+
+# how about trinity assembly only?
+cp assemblies/100Mrun.trinity.Trinity.fasta .
+
+# Pseudo-quantification with kallisto, build the index first
+kallisto index -i trincinerea.idx  100Mrun.trinity.Trinity.fasta
+
+# Make directories for each sample:
+mkdir trin_kallisto_quants
+cd trin_kallisto_quants
+for i in $inlsamples; do mkdir $i; done
+for i in $coastsamples; do mkdir $i; done
+cd ..
+
+
+# Perform the actual pseudo-quantification for all of the samples + technical replicates
+
+parallel -j 16 kallisto quant -i /home/summersk/molly/trincinerea.idx -o trin_kallisto_quants/{} -b 100 \
+inland/rcorr/{}.TRIM_1P.cor.fq inland/rcorr/{}.TRIM_2P.cor.fq ::: $inlsamples
+
+parallel -j 16 kallisto quant -i /home/summersk/molly/trincinerea.idx -o trin_kallisto_quants/{} -b 100 \
+coastal/rcorr/{}.TRIM_1P.cor.fq coastal/rcorr/{}.TRIM_2P.cor.fq ::: $coastsamples
+
+diamond blastx -d /home/summersk/peptide_databases/allpep.dmnd -q 100Mrun.trinity.Trinity.fasta -o trin2allpep.m8 --threads 32 
+# 32482 queries aligned = 41.2% annotation rate
+
+# sort by top hit
+sort trin2allpep.m8 -k 1,1 -k11,11g | sort -u -k 1,1 --merge > trinallpep_tophit.txt
+
+# xenopus only...
+diamond blastx -d /home/summersk/peptide_databases/xen.dmnd -q 100Mrun.trinity.Trinity.fasta -o trin2xen.m8 --threads 32 
+# 29441 queries aligned = 37.3% annotation rate
+
+# sort by top hit
+sort trin2xen.m8 -k 1,1 -k11,11g | sort -u -k 1,1 --merge > trinxen_tophit.txt
+
+
+# Trinity transcriptome length: 78,828

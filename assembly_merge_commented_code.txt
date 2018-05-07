@@ -27,10 +27,6 @@ cd merged/reads
 for i in *subsamp*1P.cor.fq; do cat $i; echo; done > assembly.reads.1P.fq
 for i in *subsamp*2P.cor.fq; do cat $i; echo; done > assembly.reads.2P.fq
 
-# concatenate all cleaned reads
-for i in cleaned*1P.fastq; do cat $i; echo; done > all.cleaned.1P.fq
-for i in cleaned*2P.fastq; do cat $i; echo; done > all.cleaned.2P.fq
-
 # Merging assemblies will fail because there are 2 assemblies with repeat transcript names; rename transcripts
 cd ../fastas
 awk '/^>/{print ">Coastal_" ++i; next}{print}'  coastalsubsamp.orthomerged.fasta > coastalsubsamp.orthomerged.renamed.fasta
@@ -48,9 +44,16 @@ READ2=reads/assembly.reads.2P.fq \
 CPU=26 RUNOUT=ortho_assembly_reads \
 FASTADIR=fastas/ LINEAGE=eukaryota_odb9
 
+cd reads/
+# concatenate all cleaned reads
+for i in cleaned*1P.fastq; do cat $i; echo; done > all.cleaned.1P.fq
+for i in cleaned*2P.fastq; do cat $i; echo; done > all.cleaned.2P.fq
+
+cd ..
+
 # Run orthofuser using all of the cleaned reads in the dataset
 /home/summersk/programs/Oyster_River_Protocol/orthofuser.mk all \
 READ1=reads/all.cleaned.1P.fq \
 READ2=reads/all.cleaned.2P.fq \
 CPU=30 RUNOUT=ortho_all_cleaned \
-FASTADIR=merged_fastas/ LINEAGE=eukaryota_odb9
+FASTADIR=fastas/ LINEAGE=eukaryota_odb9
