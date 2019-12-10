@@ -1,0 +1,26 @@
+#!/bin/bash
+#SBATCH --partition=macmanes,shared
+#SBATCH --cpus-per-task=40
+#SBATCH --open-mode=append
+#SBATCH --exclude=node117,node118
+#SBATCH -J cinerea_ORP
+#SBATCH --output cinerea_ORP.log
+
+set -x
+
+module purge
+module load anaconda/colsa
+
+source activate orp-20191014
+
+
+oyster.mk main \
+TPM_FILT=1 \
+STRAND=RF \
+MEM=110 \
+CPU=40 \
+READ1=subsamp.R1.fastq \
+READ2=subsamp.R2.fastq \
+SPADES1_KMER=55 \
+SPADES2_KMER=35 \
+RUNOUT=Hyla_cinerea_ORP.2.2.8
