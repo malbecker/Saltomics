@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH --job-name=busco
+#SBATCH --output=buscoMetazoa.log
+#SBATCH --cpus-per-task=24
+#SBATCH --partition=macmanes,shared
+
+source activate orp_v2
+
+
+###### BUSCO analysis
+
+python /mnt/lustre/macmaneslab/ams1236/Oyster_River_Protocol/software/anaconda/install/envs/orp_v2/bin/run_BUSCO.py -i Hyla_cinerea_ORP.2.2.8.ORP.fasta -o cinerea_eukaryota -l /mnt/lustre/macmaneslab/ams1236/Oyster_River_Protocol/busco_dbs/eukaryota_odb9/ -m transcriptome -c 24
