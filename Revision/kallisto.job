@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH --job-name=kallisto
+#SBATCH --output=kallisto.log
+#SBATCH --cpus-per-task=24
+#SBATCH --partition=macmanes,shared
+
+# load environment
+module purge
+conda activate base
+
+# build kallisto index
+kallisto index -i cinerea.idx  Hyla_cinerea_ORP.2.2.8.ORP.fasta
+
+# list all samples
+samples=$(ls data/*R1_001.fastq.gz | sed "s/R1_001.fastq.gz//g")
+
+# Make directories for each sample:
+mkdir kallisto_quants
+cd kallisto_quants
+for i in $samples; do mkdir <(basename $i); done
+cd ..
+
+for sample in $samples
+do
+out=$(basename $sample)
+kallisto quant -i cinerea.idx -o kallisto_quants/${out} -b 100 \
+${sample}R1_001.fastq.gz ${sample}R2_001.fastq.gz
+done
