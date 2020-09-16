@@ -1,0 +1,13 @@
+{
+	"n_targets": 71016,
+	"n_bootstraps": 100,
+	"n_processed": 11437847,
+	"n_pseudoaligned": 10167883,
+	"n_unique": 7746111,
+	"p_pseudoaligned": 88.9,
+	"p_unique": 67.7,
+	"kallisto_version": "0.44.0",
+	"index_version": 10,
+	"start_time": "Wed Dec 11 12:55:56 2019",
+	"call": "kallisto quant -i cinerea.idx -o kallisto_quants/4_4_DQ_6_1_22__ATGAGGCC-CAATTAAC_L005_ -b 100 data/4_4_DQ_6_1_22__ATGAGGCC-CAATTAAC_L005_R1_001.fastq.gz data/4_4_DQ_6_1_22__ATGAGGCC-CAATTAAC_L005_R2_001.fastq.gz"
+}
