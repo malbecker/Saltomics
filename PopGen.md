@@ -70,6 +70,8 @@ fi
 
 echo converting to vcf format
 bcftools mpileup -Ou --threads 40 -f $ASSEMBLY --min-MQ 30 --ignore-RG --max-depth 1000 --bam-list samplebammies.txt | bcftools call --threads 40 --variants-only -m -Ov -o intermediate_files/vcfs/H_cinerea.variantsonly.bcf
+
+bcftools convert -O v -o intermediate_files/vcfs/H_cinerea.variantsonly.vcf intermediate_files/vcfs/H_cinerea.variantsonly.bcf
 ```
 
 
