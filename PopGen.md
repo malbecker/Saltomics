@@ -22,54 +22,54 @@ ASSEMBLY=$"Hyla_cinerea_ORP.2.2.8.ORP.fasta"
 SAMPLES=$(find data -type f -name "*R1_001.fastq.gz" -printf '%f\n' | sed "s/_R1_001.fastq.gz//g")
 
 ### setup
-# mkdir intermediate_files/
-# mkdir intermediate_files/trimmed_reads
-# mkdir intermediate_files/bams/
-# mkdir intermediate_files/vcfs/
+mkdir intermediate_files/
+mkdir intermediate_files/trimmed_reads
+mkdir intermediate_files/bams/
+mkdir intermediate_files/vcfs/
 
 # begin
-# echo indexing assembly with bwa
-# bwa index $ASSEMBLY
+echo indexing assembly with bwa
+bwa index $ASSEMBLY
 
-# echo indexing with samtools
-# samtools faidx $ASSEMBLY
+echo indexing with samtools
+samtools faidx $ASSEMBLY
 
-# echo starting pipeline
-# for sample in $SAMPLES
-# do
+echo starting pipeline
+for sample in $SAMPLES
+do
 
-# echo trimming $sample
-# trimmomatic PE -threads 40 -baseout intermediate_files/trimmed_reads/$sample.fq.gz \
-# data/${sample}_R1_001.fastq.gz data/${sample}_R2_001.fastq.gz \
-# LEADING:3 TRAILING:3 ILLUMINACLIP:barcodes.fa:2:30:10 MINLEN:25
+echo trimming $sample
+trimmomatic PE -threads 40 -baseout intermediate_files/trimmed_reads/$sample.fq.gz \
+data/${sample}_R1_001.fastq.gz data/${sample}_R2_001.fastq.gz \
+LEADING:3 TRAILING:3 ILLUMINACLIP:barcodes.fa:2:30:10 MINLEN:25
 
-# echo aligning $sample
+echo aligning $sample
 ##### NOTE: this only uses reads that are paired, ignores unpaired reads.
 
-# bwa mem -t 40 $ASSEMBLY intermediate_files/trimmed_reads/${sample}_1P.fq.gz intermediate_files/trimmed_reads/${sample}_2P.fq.gz \
-# | samtools view -@20 -Sb - \
-# | samtools sort -T "$sample" -O bam -@20 -l9 -m2G -o intermediate_files/bams/"$sample".sorted.bam -
+bwa mem -t 40 $ASSEMBLY intermediate_files/trimmed_reads/${sample}_1P.fq.gz intermediate_files/trimmed_reads/${sample}_2P.fq.gz \
+| samtools view -@20 -Sb - \
+| samtools sort -T "$sample" -O bam -@20 -l9 -m2G -o intermediate_files/bams/"$sample".sorted.bam -
 
-# echo indexing $sample
-# samtools index intermediate_files/bams/"$sample".sorted.bam
+echo indexing $sample
+samtools index intermediate_files/bams/"$sample".sorted.bam
 
-# echo finished with sample prep for $sample
-# done
+echo finished with sample prep for $sample
+done
 
-# echo preparing list of bam files to convert to vcf
-# find intermediate_files/bams -type f -name "*bam" | tee samplebammies.txt
+echo preparing list of bam files to convert to vcf
+find intermediate_files/bams -type f -name "*bam" | tee samplebammies.txt
 
-# echo sanity check, are there the correct number of files
-# if [ $(wc -l samplebammies.txt | cut -d " " -f 1) -eq 31 ]
-# then
-#       echo There are the correct number of sample bam files
-# else
-#       echo You fucked up somewhere and there are not the correct number of sample bam files
-# fi
+echo sanity check, are there the correct number of files
+if [ $(wc -l samplebammies.txt | cut -d " " -f 1) -eq 31 ]
+then
+      echo There are the correct number of sample bam files
+else
+      echo You fucked up somewhere and there are not the correct number of sample bam files
+fi
 
 
 echo converting to vcf format
-bcftools mpileup -Ou --threads 40 -f $ASSEMBLY --min-MQ 30 --ignore-RG --max-depth 1000 --bam-list samplebammies.txt | bcftools call --threads 40 -m -Ov -o intermediate_files/vcfs/H_cinerea.bcf
+bcftools mpileup -Ou --threads 40 -f $ASSEMBLY --min-MQ 30 --ignore-RG --max-depth 1000 --bam-list samplebammies.txt | bcftools call --threads 40 --variants-only -m -Ov -o intermediate_files/vcfs/H_cinerea.variantsonly.bcf
 ```
 
 
