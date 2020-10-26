@@ -3,10 +3,7 @@
 This is our first-pass analysis looking at population genetics between coastal and inland frogs. We are mostly curious about genomic divergence between these two populations. If we see evidence of divergence and population structure, we will conduct more fine scale analyses.
 
 
-First, a script that will trim reads, align trimmed, reads to the reference transcriptome, produce sorted bam files for each sample, and finally call sites. Things of note:
-
-1. It only uses the reads in which forward and reverse reads survive.
-2. It calls every site, not just variant sites.
+First, a script that will trim reads, align trimmed, reads to the reference transcriptome, produce sorted bam files for each sample, and finally call sites. Of note: This script only uses the reads in which forward and reverse reads survive.
 
 ```bash
 #!/bin/bash
@@ -71,35 +68,32 @@ fi
 echo converting to vcf format
 bcftools mpileup -Ou --threads 40 -f $ASSEMBLY --min-MQ 30 --ignore-RG --max-depth 1000 --bam-list samplebammies.txt | bcftools call --threads 40 --variants-only -m -Ov -o intermediate_files/vcfs/H_cinerea.variantsonly.bcf
 
-bcftools convert -O v -o intermediate_files/vcfs/H_cinerea.variantsonly.vcf intermediate_files/vcfs/H_cinerea.variantsonly.bcf
 ```
 
 
 Then, I applied fairly stringent filtering, since the sample size is low and it is RNA seq.
 
-```bash
+```
 #!/bin/bash
 #SBATCH --partition=macmanes,shared
-#SBATCH --ntasks=40
-#SBATCH --mem 300Gb
-#SBATCH --open-mode=append
+#SBATCH --cpus-per-task=24
 #SBATCH --exclude=node117,node118
 #SBATCH --output variantfiltering.log
 
-VCF="intermediate_files/vcfs/H_cinerea.bcf"
-OUT="intermediate_files/vcfs/H_cinerea.filtered.vcf.gz"
+VCF="intermediate_files/vcfs/H_cinerea.variantsonly.vcf"
+OUT="intermediate_files/vcfs/H_cinerea.filtered.vcf"
 
 # description
 Description="
 
-We are applying fairly stringent filtering to our RNAseq dataset. Here is the important information: 
+We are applying fairly stringent filtering to our RNAseq dataset. Here is the important information:
 
 
-minor allele frequency (maf) = 0.1 
-missing data (max-missing) = allow 10% missing data 
-minimum quality (minQ) = 30 
-minimum depth for a genotype, below which an individual is marked as having missing data (minDP) = 10 
-minimum average depth for a site, below which is it marked as missing data (--min-meanDP) = 10 
+minor allele frequency (maf) = 0.1
+missing data (max-missing) = allow 10% missing data
+minimum quality (minQ) = 30
+minimum depth for a genotype, below which an individual is marked as having missing data (minDP) = 10
+minimum average depth for a site, below which is it marked as missing data (--min-meanDP) = 10
 
 
 "
@@ -107,48 +101,110 @@ minimum average depth for a site, below which is it marked as missing data (--mi
 printf "%s" "$Description"
 
 
-## Filter vcf print
-vcftools --bcf $VCF \
+## Filter vcf
+vcftools --vcf $VCF \
 --maf 0.1 \
 --max-missing 0.9 \
---minQ 30 \
---min-meanDP 10  \
---minDP 10 \
---recode --stdout \
-| gzip -c > $OUT
+--minQ 20 \
+--remove-indels \
+--recode --stdout > $OUT
+
+# --min-meanDP 10  \
+# --minDP 10 \
 ```
 
-Next up, what is the genomic divergence (Fst) between coastal and inland frogs?
+Next up, what is the genomic divergence (Fst) between coastal and inland frogs? Even though sample sizes are super low for individual comparisons, we make those as well as a sanity check.
 
 ```bash
 #!/bin/bash
 #SBATCH --partition=macmanes,shared
-#SBATCH --ntasks=40
-#SBATCH --mem 300Gb
-#SBATCH --open-mode=append
+#SBATCH --ntasks=24
 #SBATCH --exclude=node117,node118
 #SBATCH --output fstcalc.log
 
 
-VCF="intermediate_files/vcfs/H_cinerea.filtered.vcf.gz"
+VCF="intermediate_files/vcfs/H_cinerea.filtered.vcf"  # change to filtered file later.
+OUTDIR="intermediate_files/fsts"
 
-bcftools query -l $VCF
+mkdir intermediate_files/fsts
 
-#### Produce population files:
-# extract sample names for coastal
-bcftools query -l $VCF | grep -E "BOD|CSI|DQ" >  coastalsamples.txt
-# extract sample names for inland
-bcftools query -l $VCF | grep -E "PWL|WHF|LO|BL" > inlandsamples.txt
+##########################################
+######### while read all  ################
+##########################################
+
+COMPARISONS="FstComparisons.txt"
+
+sed 1d $COMPARISONS | while IFS=$'\t' read -r comparison pop1 searchterm1 pop2 searchterm2
+do
+        echo $comparion with $searchterm1 and $searchterm2
+        echo sample prep
+        bcftools query -l $VCF | grep $pop1 > ${OUTDIR}/pop1samples.txt
+        bcftools query -l $VCF | grep $pop2 > ${OUTDIR}/pop2samples.txt
+        echo run fst calculations for $comparison
+        vcftools --vcf $VCF --weir-fst-pop ${OUTDIR}/pop1samples.txt --weir-fst-pop ${OUTDIR}/pop2samples.txt --out ${OUTDIR}/$comparison > ${OUTDIR}/$comparison.fst.log 2>&1
+done
 
 
-#### Use these population files to calculate fst:
-vcftools --zvcf ${VCF} \
---weir-fst-pop coastalsamples.txt \
---weir-fst-pop inlandsamples.txt \q
---out coastal-inland
+##### coastal inland comparison
+
+bcftools query -l $VCF | grep -E "BOD|CSI|DQ" > ${OUTDIR}/pop1samples.txt
+bcftools query -l $VCF | grep -E "PWL|WHF|LO|BL" > ${OUTDIR}/pop2samples.txt
+echo run fst calculations for coastal vs inland
+vcftools --vcf $VCF --weir-fst-pop ${OUTDIR}/pop1samples.txt --weir-fst-pop ${OUTDIR}/pop2samples.txt --out ${OUTDIR}/coastal-inland > ${OUTDIR}/coastal-inland.fst.log 2>&1
+
+### extract fst values:
+
+printf "Comparison\tPopulation_1\tPopulation_2\tMean_Fst\tWeighted_Fst\tSampleSize\n" > Fstvalues.tsv
+
+comps=$(ls ${OUTDIR}/*fst.log)
+
+for comp in $comps
+do
+pop1=$(grep "\\-\\-out" $comp | cut -f 2 -d " " | cut -d- -f1 | sed "s/^.*\\///g")
+pop2=$(grep "\\-\\-out" $comp | cut -f 2 -d " " | cut -d- -f2)
+fst=$(grep "mean Fst" $comp | cut -d: -f2 | sed "s/ //g")
+weir=$(grep "weighted" $comp | cut -d: -f2 | sed "s/ //g")
+N=$(grep "Individuals" $comp | cut -f 4 -d " ")
+comppops=$(echo $comp | sed "s/^.*\\///g" | sed "s/.fst.log//g")
+printf "%s\t%s\t%s\t%s\t%s\t%s\n" "$comppops" "$pop1" "$pop2" "$fst" "$weir" "$N" >> Fstvalues.tsv
+done
+
+## cleanup
+rm ${OUTDIR}/pop1samples.txt
+rm ${OUTDIR}/pop2samples.txt
+rm ${OUTDIR}/*fst.log
+
 ```
 
-We obviously have to look at genetic structure. Run ADMIXTURE.
+We obviously have to look at genetic structure. We want to run ADMIXTURE, but first we have to convert our data to a usable format via `plink2`. Because plink only accepts a certain number of contigs and we are over that, we have to do a bit of nonsense.
+
+```bash
+cd intermediate_files/vcfs/
+
+grep "^##contig=<ID" H_cinerea.filtered.vcf | cut -f3 -d= | cut -f1 -d, | sort | uniq > contigs.txt
+
+mkdir tmp_vcfs/
+mkdir tmp_plink/
+
+# pull out each contig into its own vcf
+for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} > tmp_vcfs/${tig}.vcf; done
+
+# make each contig vcf into the appropriate bed/bim/fam file format
+for tig in `cat contigs.txt`; do /mnt/lustre/macmaneslab/ams1236/software/plink2 --double-id --allow-extra-chr --vcf tmp_vcfs/${tig}.vcf --make-bed --out tmp_plink/${tig}; done
+
+# cat them all together (and hope it works).
+cd tmp_plink
+cat *bed > tmp
+mv tmp > H_cinerea.filtered.bed
+
+cat *bim > tmp
+mv tmp > H_cinerea.filtered.bim
+
+cat *fam > tmp
+mv tmp > H_cinerea.filtered.fam
+```
+
+Now we can run ADMIXTURE.
 
 ```bash
 #!/bin/bash
