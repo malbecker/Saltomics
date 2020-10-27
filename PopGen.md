@@ -192,16 +192,22 @@ for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} 
 # make each contig vcf into the appropriate bed/bim/fam file format
 for tig in `cat contigs.txt`; do /mnt/lustre/macmaneslab/ams1236/software/plink2 --double-id --allow-extra-chr --vcf tmp_vcfs/${tig}.vcf --make-bed --out tmp_plink/${tig}; done
 
-# cat them all together (and hope it works).
-cd tmp_plink
-cat *bed > tmp
-mv tmp > H_cinerea.filtered.bed
+# Now we have to concatenate them all together.
+mkdir plink_merged/
+# just the first fam file:
+first=$(head -n1 contigs.txt)
+cat tmp_plink/${first}.fam > plink_merged/H_cinerea.filtered.merged.fam
 
-cat *bim > tmp
-mv tmp > H_cinerea.filtered.bim
+# for loop for the bim files:
+for tig in `cat contigs.txt`; do cat tmp_plink/${tig}.bim; done > plink_merged/H_cinerea.filtered.merged.bim
 
-cat *fam > tmp
-mv tmp > H_cinerea.filtered.fam
+# for loop for the bed files:
+(echo -en "\x6C\x1B\x01"; for tig in `cat contigs.txt`; do tail -c +4 tmp_plink/${tig}.bed; done) > plink_merged/H_cinerea.filtered.merged.bed
+
+# apparently ADMIXTURE only works with standard chromosome names (integers, X, Y, etc). So here is some more bullshit that changes column 1 to 0 (unknown chromosome), then changes column 2 to what was column 1 (ie the contig id). This then solves our issues with too many contig IDs, etc and we can get ADMIXTURE to run, finally.
+awk {'printf ("0\t%s\t%s\t%s\t%s\t%s\t\n", $1, $3, $4, $5, $6)'} H_cinerea.filtered.merged.bim > tmp
+mv tmp H_cinerea.filtered.merged.bim 
+
 ```
 
 Now we can run ADMIXTURE.
@@ -209,28 +215,26 @@ Now we can run ADMIXTURE.
 ```bash
 #!/bin/bash
 #SBATCH --partition=macmanes,shared
-#SBATCH -J refadmix
+#SBATCH -J admix
 #SBATCH --output admixture.log
 #SBATCH --cpus-per-task=24
 #SBATCH --exclude node117,node118
 
 ## prep
 mkdir intermediate_files/ADMIXTURE
-cd intermediate_files/ADMIXTURE
 
-VCF="intermediate_files/vcfs/H_cinerea.filtered.vcf.gz"
-OUT="H_cinerea"
+BED="intermediate_files/vcfs/plink_merged/H_cinerea.filtered.merged.bed"
 
-plink --vcf $VCF --make-bed --out $OUT 
-
+# admixture is in:
+#module load linuxbrew/colsa
 # run admixture; I have 2 populations, so do up to K = 6
 for K in 1 2 3 4 5 6
 do
-admixture -j40 --cv $OUT.bed $K | tee admix_log${K}.out
+admixture -j24 --cv $BED $K | tee intermediate_files/ADMIXTURE/admix_log${K}.out
 
 # create CV value file:
-CV=$(grep "CV error" admix_log${K}.out | cut -d : -f 2 | sed "s/ //g")
-printf "%s\t%s\n" "$K" "$CV" >> CV_values.tab
+CV=$(grep "CV error" intermediate_files/ADMIXTURE/admix_log${K}.out | cut -d : -f 2 | sed "s/ //g")
+printf "%s\t%s\n" "$K" "$CV" >> intermediate_files/ADMIXTURE/CV_values.tab
 done
 ```
 
