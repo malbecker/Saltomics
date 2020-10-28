@@ -92,8 +92,7 @@ We are applying fairly stringent filtering to our RNAseq dataset. Here is the im
 minor allele frequency (maf) = 0.1
 missing data (max-missing) = allow 10% missing data
 minimum quality (minQ) = 30
-minimum depth for a genotype, below which an individual is marked as having missing data (minDP) = 10
-minimum average depth for a site, below which is it marked as missing data (--min-meanDP) = 10
+
 
 
 "
@@ -109,8 +108,6 @@ vcftools --vcf $VCF \
 --remove-indels \
 --recode --stdout > $OUT
 
-# --min-meanDP 10  \
-# --minDP 10 \
 ```
 
 Next up, what is the genomic divergence (Fst) between coastal and inland frogs? Even though sample sizes are super low for individual comparisons, we make those as well as a sanity check.
