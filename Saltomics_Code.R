@@ -25,6 +25,8 @@ require(RColorBrewer)
 library(tidyverse)
 library(ggthemes)
 library(apeglm)
+require(survminer)
+require(survival)
 
 ## Load plotting colors and aesthetics
 
@@ -34,12 +36,40 @@ cols1 <- c("Inland" = "darkseagreen4", "Coastal" = "dodgerblue4")
 eggshape = c("0" = 19, "4" = 1)
 col.loc= c("inland"="darkseagreen","coastal" = "dodgerblue4")
 col.loc_cap= c("Inland"="darkseagreen", "Coastal" = "dodgerblue4")
+PCAcols = c("Inland" = "darkseagreen4", "Coastal" = "dodgerblue4")
+pop_shapes <- c("BL" = 21,"LO" = 22,"PWL" = 23,"WHF" = 24,"BOD" = 21, "CSI" = 24,"DQ" = 22, "LH" = 23)
+loc_shapes <- c("inland"=21,"coastal" = 22)
+trt_lines <- c("0_0"="dotted","0_6"="solid","4_4"= "dotdash" ,"4_6" ="dashed")
+line_type <- c("4_inland" = "dashed",  "0_inland"= "solid", "4_coastal"="dashed", "0_coastal"="solid")
+line_type_cap <- c("4_Inland" = "dashed",  "0_Inland"= "solid", "4_Coastal"="dashed", "0_Coastal"="solid")
+salinity <- c("0" = 15, "4" = 16,"6"=17)
+eggpop_shape <- c("4_WHF" =2,"0_WHF"=17, "4_PWL" =5,"0_PWL"=18, "4_CSI"=2, "0_CSI"=17, "4_LH" =5, "0_LH" =18, 
+                  "4_BOD"=1, "0_BOD"=16, "4_DQ"  =0, "0_DQ"=15,  "4_BL" =1, "0_BL"=16 , "4_LO"=0,  "0_LO"= 15)
+eggtadx = c("0_0" = "0 ppt", "0_6" = "6 ppt", "4_4" = "4 ppt", "4_6" = "6 ppt")
+shapesite = c("0_Inland_BL"=21,"4_Inland_BL"=21,
+              "0_Coastal_BOD"=21, "4_Coastal_BOD"=21,
+              "4_Coastal_DQ"=22,"0_Coastal_DQ"=22,
+              "0_Coastal_LH"=23,"4_Coastal_LH"=23,
+              "0_Inland_LO"=22,"4_Inland_LO" = 22,
+              "0_Inland_PWL" =23,"4_Inland_PWL" =23,
+              "4_Inland_WHF"=24,"0_Inland_WHF"=24,
+              "0_Coastal_CSI"=24,"4_Coastal_CSI"=24)
+
+colsite = c("0_Inland_BL"="darkseagreen" ,"4_Inland_BL"="darkseagreen" ,
+            "0_Coastal_BOD"="dodgerblue4" , "4_Coastal_BOD"="dodgerblue4" ,
+            "4_Coastal_DQ"="dodgerblue4" ,"0_Coastal_DQ"="dodgerblue4" ,
+            "0_Coastal_LH"="dodgerblue4" ,"4_Coastal_LH"="dodgerblue4" ,
+            "0_Inland_LO"="darkseagreen" ,"4_Inland_LO" = "darkseagreen" ,
+            "0_Inland_PWL" ="darkseagreen" ,"4_Inland_PWL" ="darkseagreen" ,
+            "4_Inland_WHF"="darkseagreen" ,"0_Inland_WHF"="darkseagreen" ,
+            "0_Coastal_CSI"="dodgerblue4" ,"4_Coastal_CSI"="dodgerblue4")
+pd <- position_dodge(0.4)
 
 ################################
 ## Tadpole Phenotype Analyses ##
 ################################
 
-## Load Datasets
+######## Load Datasets #########
 
 # Set working directory
 setwd("~/Desktop/Work/DataSets/Tadpole Plasticity_2017/")
@@ -54,10 +84,13 @@ hatch = read.csv("Egg_Hatch.csv")
 tadphysio = read.csv("HC_physio.csv")
 
 # Tadpole survivorship during acclimation period
-tadacc = read.csv("Tadpole Acclim_2017.csv")
+tadacc1 = read.csv("Tadpole Acclim_2017.csv")
+
+# Survival (tadacc in long form)
+survdat2 = read.csv("survdat2.csv")
 
 
-## Egg Development ##
+######## Embryo Development #########
 
 # Data wrangling
 egg1<-filter(egg, Age_adj<50) # Some eggs did not hatch - this removes all non-hatching eggs.
@@ -87,39 +120,42 @@ ggplot(egg1,aes(x=Age_adj, y=stage, group= factor(Loc), colour =factor(Loc)))+
   theme(axis.text= element_text(colour = "black")) +
   theme(legend.position="none")
 
-
-## Egg hatching ##
+######## Embryo Hatching #########
 
 hatch$prop.hatch = hatch$Hatched/hatch$Eggs # Divide the number hatched by total laid in clutch
 
 # How does salinity and location affect the proportion of eggs that hatch?
-b1 = glmer(prop.hatch ~ factor(Egg_env) * Loc * (1|Pop), weights = Eggs, data = hatch, family = binomial())
-b2 = glmer(prop.hatch ~ factor(Egg_env) + Loc + (1|Pop),  weights = Eggs, data = hatch, family = binomial())
-b3 = glmer(prop.hatch ~ 1 * Loc + (1|Pop),  weights = Eggs, data = hatch, family = binomial())
-b4 = glmer(prop.hatch ~ factor(Egg_env) * 1 + (1|Pop), weights = Eggs, data = hatch, family = binomial())
+b1 = glmer(prop.hatch ~ factor(Egg_env) * Loc * (1|Pop), weights = Eggs, data = hatch, family = binomial(), na.action="na.exclude")
+b2 = glmer(prop.hatch ~ factor(Egg_env) + Loc + (1|Pop),  weights = Eggs, data = hatch, family = binomial(), na.action="na.exclude")
+b3 = glmer(prop.hatch ~ 1 * Loc + (1|Pop),  weights = Eggs, data = hatch, family = binomial(), na.action="na.exclude")
+b4 = glmer(prop.hatch ~ factor(Egg_env) * 1 + (1|Pop), weights = Eggs, data = hatch, family = binomial(), na.action="na.exclude")
 
 anova(b1,b2) # Significant interaction with salinity and location
 anova(b1,b3) # Yes, significant effect of salinity
 anova(b1,b4) # Yes, significant effect of location
 
 # Plot (Figure 2a)
+hatch$predicted = plogis(predict(b1))
+hatch$eggloc = paste(hatch$Egg_env,hatch$Loc, sep="_")
+hatch$eggpop = paste(hatch$Egg_env,hatch$Pop, sep="_")
 
-ggplot(hatch,aes(x=Egg_env, y=prop.hatch, group= factor(Loc), colour =Loc))+
+ggplot(hatch,aes(x=Egg_env, y=prop.hatch, group= factor(eggloc)))+
   xlab("Salinity of Embryonic Environment (ppt)") +
   ylab("Proportion Embryos Hatched") +
-  stat_summary(position = position_dodge(0.3), geom = "line")+
-  stat_summary(position = position_dodge(0.3), size=1.5)+
-  scale_fill_manual(values = cols) +
-  scale_colour_manual(values = cols) +
+  geom_boxplot(aes(fill=Loc),alpha = 0.4)+
+  geom_jitter(aes(shape = Loc, fill = Loc),size = 4,  width = 0.35)+
+  scale_fill_manual(values = col.loc) +
+  scale_colour_manual(values = col.loc) +
+  scale_shape_manual(values = loc_shapes) +
   theme_hc(base_size = 24, base_family = "Times")+ 
   theme(axis.line = element_line(colour = "black"))+
-  theme(axis.text= element_text(colour = "black")) +
+  theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
 
-## Tadpole Survival on Final day of acclimations ##
+######## Tadpole Survival on Day 6 #########
 
 # Data wrangling
-tadacc = tadacc[-480,] #removes suspicious outlier (35 recorded as alive on d6 in 12 ppt for lowes population... I think this is a typo)
+tadacc = tadacc1[-c(475:480),] #removes suspicious outlier inland clutch (uncertain of cause)
 tadacc$eggsal = as.factor(tadacc$eggsal)
 tadacc$target_sal = as.factor(tadacc$target_sal)
 tadacc$prop.surv = (tadacc$survive/50) # Divides number in cup by starting density of 50 tads
@@ -144,60 +180,97 @@ anova(c1,c4,test="Chisq") # Significant impact of location
 anova(c1,c5,test="Chisq") # Significant impact of tadpole salinity
 
 # Plot (Figure 2b)
+tadacc6$predicted = plogis(predict(c1))
 tadacc6$eggloc = paste(tadacc6$eggsal,tadacc6$loc, sep="_")
-ggplot(tadacc6,aes(x=factor(target_sal), y=prop.surv, group= factor(eggloc), colour =loc,shape = factor(eggsal)))+
+tadacc6$eggpop = paste(tadacc6$eggsal,tadacc6$pop, sep="_")
+
+ggplot(tadacc6,aes(x=factor(target_sal), y=prop.surv, group= factor(eggloc)))+
   xlab("Target Salinity of Tadpole Environment (ppt)") +
   ylab("Proportion Survived") +
-  stat_summary(position = position_dodge(0.35), geom = "line")+
-  stat_summary(position = position_dodge(0.35),size=1.5)+
+  geom_smooth(aes(y = predicted, colour = loc, linetype = eggloc), se = FALSE)+
+  geom_jitter(aes(shape = eggpop,colour=loc, size = 2),width = 0.25)+
+  #stat_summary(position = position_dodge(0.35),size=1.5)+
+  scale_fill_manual(values = col.loc) +
+  scale_colour_manual(values = col.loc) +
+  scale_shape_manual(values = eggpop_shape) +
+  scale_linetype_manual(values = line_type)+
+  theme_hc(base_size = 24, base_family = "Times")+ 
+  theme(axis.line = element_line(colour = "black"))+
+  theme(axis.text= element_text(colour = "black"))+
+  theme(legend.position="none")
+
+######## Tadpole Survival Through Time #########
+
+survdat2$eggsal = as.factor(survdat2$eggsal)
+survdat2$target_sal = as.factor(survdat2$target_sal)
+survdat2$dead = 0
+for(i in 1:nrow(survdat2)){ #Create binary column - 1 = alive at MM, 0 = dead at MM
+  if (survdat2$alive[i] == "1"){survdat2$dead[i] = 0}
+  else (survdat2$dead[i] = 1)
+}
+
+# Kaplan-Meier Survival Estimates
+surv1 <- survfit(Surv(day,dead) ~ eggsal + loc + target_sal, data = survdat2) 
+sumdat = surv_summary(surv1)
+sumdat$eggloc = paste(sumdat$eggsal,sumdat$loc,sep="_")
+
+#Cox Regression (nonparametric hazard estimation)
+cx1 <- coxph(Surv(day,dead) ~ eggsal + loc + target_sal, data = survdat2)
+summary(cx1)
+sumdat1 = filter(sumdat,target_sal=="12")
+
+ggplot(data = sumdat1, aes(x=factor(time),y=surv,group = eggloc,colour = loc,shape=factor(eggsal)))+
+  geom_line(position = position_dodge(0.3)) +
+  geom_point(size=6,position = position_dodge(0.3)) +
+  geom_errorbar(aes(ymin=lower,ymax=upper,colour = loc),width=0,position = position_dodge(0.3))+
   scale_fill_manual(values = cols) +
   scale_colour_manual(values = cols) +
   scale_shape_manual(values = eggshape) +
+  #scale_linetype_manual(values = lineshift2)+ 
   theme_hc(base_size = 24, base_family = "Times")+ 
   theme(axis.line = element_line(colour = "black"))+
   theme(axis.text= element_text(colour = "black")) +
+  xlab("Acclimation period (day)") +
+  ylab("Survival in 12ppt (Target Salinity)")+
   theme(legend.position="none")
 
-## Body Condition on final day of acclimations ##
 
-# Need to calculate slope for how weight scales with length
-tadphysio$Wt_mg = tadphysio$WetWt*1000 # Convert grams to milligrams
-sl2 = lm(log(Wt_mg) ~ log(Length), data=tadphysio) # Slope = 2.13
-tadphysio$condition = (tadphysio$Wt_mg/(tadphysio$Length^2.13)) # weight/length scaled by slope
-tadphysio$EggEnv = as.factor(tadphysio$EggEnv)
+######## Tadpole Length #########
 
-# Are there differences in body condition at final measurement due to location or trt?
-
-d1 = lmer(condition ~ EggEnv * TadEnv * Loc + (1|Cup) + (1|Pop), data = tadphysio)
-d2 = lmer(condition ~ EggEnv + TadEnv + Loc + (1|Cup) + (1|Pop), data = tadphysio)
-d3 = lmer(condition ~ EggEnv + 1 + Loc + (1|Cup) + (1|Pop), data = tadphysio)
-d4 = lmer(condition ~ EggEnv + TadEnv + (1|Cup) + (1|Pop), data = tadphysio)
-d5 = lmer(condition ~ 1 + TadEnv + 1 + (1|Cup) + (1|Pop), data = tadphysio)
+d1 = lmer(log(Length) ~ EggEnv. * TadEnv * Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
+d2 = lmer(log(Length) ~ EggEnv. + TadEnv + Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
+d3 = lmer(log(Length) ~ 1 + TadEnv + Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
+d4 = lmer(log(Length) ~ EggEnv. + TadEnv + 1 + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
+d5 = lmer(log(Length) ~ EggEnv. + 1 + Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
 
 anova(d1,d2) # No interaction
-anova(d2,d3) # Effect of Salinity (X2 = 21.31, p < 0.0001)
-anova(d2,d4) # No effect of location (x2 = 1.12, p = 0.29)
-anova(d2,d5) # Effect of egg environment (X2 = 9.064, p = 0.011)
+anova(d2,d3) # No Effect of Embryonic Salinity 
+anova(d2,d4) # Marginal effect of location(p = 0.06)
+anova(d2,d5) # Effect of tadpole environment
 
 # Plot (Figure 3a)
+tadphysio$predicted = exp(predict(d2))
+tadphysio$eggloc = paste(tadphysio$EggEnv.,tadphysio$Loc, sep="_")
+tadphysio$eggpop = paste(tadphysio$EggEnv.,tadphysio$Pop, sep="_")
 
-tadphysio$eggloc = paste(tadphysio$EggEnv,tadphysio$Loc,sep="_")
-ggplot(tadphysio,aes(x=factor(TadEnv), y=condition, group=eggloc, shape = factor(EggEnv), colour =Loc))+
-  xlab("Salinity of Tadpole Environment (ppt)") +
-  ylab("Body Condition (size)") +
-  stat_summary(position = position_dodge(0.3),size=1.5)+
-  stat_summary(position = position_dodge(0.3), geom = "line")+
-  scale_fill_manual(values = cols1) +
-  scale_colour_manual(values = cols1) +
-  scale_shape_manual(values = eggshape) +
+ggplot(tadphysio,aes(x=factor(TadEnv), y=Length, group= factor(eggloc)))+
+  xlab("Target Salinity of Tadpole Environment (ppt)") +
+  ylab("Total Length (mm)") +
+  geom_jitter(aes(shape = eggpop, colour=Loc), size = 1, width = 0.25)+
+  geom_smooth(aes(y = predicted, fill= Loc,colour = Loc, linetype = eggloc), se = TRUE)+
+  scale_fill_manual(values = col.loc_cap) +
+  scale_colour_manual(values = col.loc_cap) +
+  scale_shape_manual(values = eggpop_shape) +
+  scale_linetype_manual(values = line_type_cap)+
   theme_hc(base_size = 24, base_family = "Times")+ 
   theme(axis.line = element_line(colour = "black"))+
-  theme(axis.text= element_text(colour = "black")) +
+  theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
 
-## Whole Body Plasma Osmolality ##
 
-# I had an issue with calibration, so I excluded populations that are unreliable 
+######## Tadpole Plasma Osmolality #########
+
+# I had an issue with osmometer calibration, so I excluded populations that are unreliable 
 goodpops = c("BOD","CSI","LH","PWL","WHF")
 tadphysio1 = filter(tadphysio, Pop %in% goodpops) %>%
   droplevels()
@@ -206,32 +279,36 @@ tadphysio1 = filter(tadphysio, Pop %in% goodpops) %>%
 
 tadphysio1$EggEnv = as.factor(tadphysio1$EggEnv)
 f1 = glmer(Osmo ~ EggEnv * TadEnv * Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson(),
-            control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000),tol=0.001)) # Difficulty converging
-f2 = glmer(Osmo ~ EggEnv + TadEnv + Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson())
+            control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000),tol=0.001), na.action="na.exclude") # Difficulty converging
+f2 = glmer(Osmo ~ EggEnv + TadEnv + Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson(), na.action="na.exclude")
 f3 = glmer(Osmo ~ EggEnv + TadEnv + 1 + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson(),
-            control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000),tol=0.001))
-f4 = glmer(Osmo ~ TadEnv + 1 + Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson())
-f5 = glmer(Osmo ~ EggEnv + 1 + Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson())
+            control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000),tol=0.001), na.action="na.exclude")
+f4 = glmer(Osmo ~ TadEnv + 1 + Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson(), na.action="na.exclude")
+f5 = glmer(Osmo ~ EggEnv + 1 + Loc + (1|Pop) + (1|Cup), data = tadphysio1, family = poisson(), na.action="na.exclude")
 anova(f1,f2) # No significant interaction
 anova(f2,f3) # Location effect  
 anova(f2,f4) # Marginal egg environment effect (p = 0.09)
 anova(f2,f5) # Effect of tadpole salinity (p > 0.01)
 
 # Plot (Figure 3b)
+tadphysio1$predicted = exp(predict(f2))
+tadphysio1$eggloc = paste(tadphysio1$EggEnv,tadphysio1$Loc, sep="_")
+tadphysio1$eggpop = paste(tadphysio1$EggEnv,tadphysio1$Pop, sep="_")
 
-tadphysio1$eggloc = paste(tadphysio1$EggEnv, tadphysio1$Loc, sep= "_")
-ggplot(tadphysio1,aes(x=factor(TadEnv), y=Osmo, group=eggloc, shape = factor(EggEnv), colour =Loc))+
+ggplot(tadphysio1,aes(x=factor(TadEnv), y=Osmo, group= factor(eggloc)))+
   xlab("Salinity of Tadpole Environment (ppt)") +
   ylab("Plasma Osmolality (mOsm/L)") +
-  stat_summary(position = position_dodge(0.3),size=1.5)+
-  stat_summary(position = position_dodge(0.3), geom = "line")+
-  scale_fill_manual(values = cols1) +
-  scale_colour_manual(values = cols1) +
-  scale_shape_manual(values = eggshape) +
+  geom_jitter(aes(shape = eggpop, colour=Loc), size = 1, width = 0.25)+
+  geom_smooth(aes(y = predicted, fill= Loc,colour = Loc, linetype = eggloc), se = TRUE)+
+  scale_fill_manual(values = col.loc_cap) +
+  scale_colour_manual(values = col.loc_cap) +
+  scale_shape_manual(values = eggpop_shape) +
+  scale_linetype_manual(values = line_type_cap)+
   theme_hc(base_size = 24, base_family = "Times")+ 
   theme(axis.line = element_line(colour = "black"))+
-  theme(axis.text= element_text(colour = "black")) +
+  theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
+
 
 ######################################
 ## Tadpole Gene Expression Analyses ##
@@ -383,7 +460,11 @@ dds_loc_tr = dds_loc
 rl_loc <- DESeq2::vst(dds_pca)  
 
 ## Launch PCA Explorer
-# pcaExplorer(dds = dds_pca, rl_loc) #Will launch app
+pcaExplorer(dds = dds_pca, rl_loc) #Will launch app
+
+## Extract high loadings
+pcaobj <- prcomp(t(SummarizedExperiment::assay(rl_loc)))
+hi_loadings(pcaobj, whichpc = 2, topN = 10,exprTable=counts(dds_pca)) 
 
 ## Extract PC1 and PC2 data
 
@@ -394,17 +475,11 @@ percentVar <- round(100 * attr(pcaData, "percentVar"),digits=2)
 ## Plot Specs
 pcaData$group = paste(pcaData$egg, pcaData$tad, pcaData$location,sep=":")
 pcaData$trt = paste(pcaData$egg, pcaData$tad, sep = "_")
-PCAcols = c("Inland" = "darkseagreen4", "Coastal" = "dodgerblue4")
-pop_shapes <- c("BL" = 15,"LO" = 16,"PWL" = 17,"WHF" = 18,
-                "BOD" = 15, "CSI" = 16, "DQ" = 17, "LH" = 18)
-trt_lines <- c("0_0"="dotted","0_6"="solid","4_4"= "dotdash" ,"4_6" ="dashed")
-salinity <- c("0" = 15, "4" = 16,"6"=17)
 
 # Plot PCA (Figure 4)
-
-ggplot(pcaData, aes(x = PC1, y = PC2, fill = location, colour = location, shape = Population)) +
-  geom_point(size =3) +
-  stat_ellipse(aes(group = group, colour = location,lty=trt),size = 1)+
+ggplot(pcaData, aes(x = PC1, y = PC2, shape = Population)) +
+  geom_point(aes(fill = location),size = 4) +
+  stat_ellipse(aes(group = location, colour = location),size = 1,alpha = 1)+
   xlab(paste0("PC1: ", percentVar[1], "% variance")) +
   ylab(paste0("PC2: ", percentVar[2], "% variance")) +
   scale_colour_manual(name = "Location",values = PCAcols)+
@@ -412,7 +487,8 @@ ggplot(pcaData, aes(x = PC1, y = PC2, fill = location, colour = location, shape 
                         labels = c("0ppt egg: 0ppt tad","0ppt egg: 6ppt tad","4ppt egg: 4ppt tad", "4ppt egg: 6ppt tad"), 
                         values = trt_lines)+
   scale_fill_manual(values= PCAcols)+ guides(fill = FALSE) +
-  scale_shape_manual(values = pop_shapes) + guides(shape = FALSE) +
+  scale_shape_manual(values = pop_shapes,
+                     labels = c("Inland 1 (BL)", "Coastal 1 (BOD)", "Coastal 2 (CSI)","Coastal 3 (DQ)","Coastal 4 (LH)","Inland 2 (LO)","Inland 3 (PWL)","Inland 4 (WHF)")) + #guides(shape = FALSE) +
   theme_bw(base_size = 24, base_family = "Times")+
   theme(axis.text.x = element_text(size=20,colour = "black",angle = 45, hjust=1),
         axis.title.x = element_text(size=24,face="bold")) +
@@ -421,7 +497,7 @@ ggplot(pcaData, aes(x = PC1, y = PC2, fill = location, colour = location, shape 
   theme(plot.background = element_blank(),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        panel.border = element_rect(size = 2)) # + theme(legend.position="none")
+        panel.border = element_rect(size = 2)) + theme(legend.position="none")
 
 # To identify DE genes
 gene_names <- so_anno[,c(1,4)]
@@ -487,16 +563,6 @@ all.genes = rbind(loc_go3,de_sal, de_sal2,de_interaction,de_interaction2,fill=TR
 all.genes[all.genes$gene_name == "tjp3",] # To look at patterns of single genes
 
 # Plot genes of interest 
-eggtadx = c("0_0" = "0 ppt", "0_6" = "6 ppt", "4_4" = "4 ppt", "4_6" = "6 ppt")
-shapesite = c("0_Inland_BL"=15,"4_Inland_BL"=15,
-              "0_Coastal_BOD"=15, "4_Coastal_BOD"=15,
-              "4_Coastal_DQ"=16,"0_Coastal_DQ"=16,
-              "0_Coastal_LH"=17,"4_Coastal_LH"=17,
-              "0_Inland_LO"=16,"4_Inland_LO" = 16,
-              "0_Inland_PWL" =17,"4_Inland_PWL" =17,
-              "4_Inland_WHF"=18,"0_Inland_WHF"=18,
-              "0_Coastal_CSI"=18,"4_Coastal_CSI"=18)
-pd <- position_dodge(0.4)
 
 genePlot =function(transcript_id,refdata){
   
@@ -514,23 +580,29 @@ genePlot =function(transcript_id,refdata){
   c_temp$egglocpop = paste(c_temp$egg,c_temp$location.x,c_temp$population, sep = "_")
   
   # Plot Candidates
-  geneplot_candidate = ggplot(c_temp,  aes(x = eggtad, y = count, colour = location.x)) + 
+  (geneplot_candidate = ggplot(c_temp,  aes(x = eggtad, y = count)) + 
     ggtitle(gene_name,  subtitle = "") +
     ylab("Normalized Counts") + 
     xlab("Salinity of Tadpole Environment") +
     geom_vline(aes(xintercept = 2.5))+
-    stat_summary(aes(group = eggloc), size = 1.5, geom = "line")+
-    stat_summary(aes(group = egglocpop), position = position_dodge(0.25), alpha = 0.5, geom = "line")+
-    stat_summary(aes(group = eggloc),size = 1)+
-    geom_point(aes(group = egglocpop, shape = egglocpop),position = position_dodge(0.25), size = 2)+
-    scale_colour_manual(values = col.loc_cap)+
-    scale_shape_manual(values = shapesite)+
+    geom_boxplot(aes(fill= location.x),size = 0.75,colour = "black",alpha = 0.6)+
+    geom_point(aes(group = egglocpop, shape = egglocpop, fill = location.x),position = position_dodge(0.4), size = 3)+
+    scale_fill_manual(values = PCAcols)+ # Use colsite with fill = egglocpop when you want to recreate legend.
+    scale_shape_manual(name = "Population",
+                       values = shapesite,
+                       labels = c("0_Inland_BL"="Inland 1 (BL)","4_Inland_BL"="Inland 1 (BL)",
+                                  "0_Coastal_BOD"="Coastal 1 (BOD)", "4_Coastal_BOD"="Coastal 1 (BOD)",
+                                  "4_Coastal_DQ"="Coastal 3 (DQ)","0_Coastal_DQ"="Coastal 3 (DQ)",
+                                  "0_Coastal_LH"="Coastal 4 (LH)","4_Coastal_LH"="Coastal 4 (LH)",
+                                  "0_Inland_LO"="Inland 2 (LO)","4_Inland_LO" = "Inland 2 (LO)",
+                                  "0_Inland_PWL" ="Inland 3 (PWL)","4_Inland_PWL" ="Inland 3 (PWL)",
+                                  "4_Inland_WHF"="Inland 4 (WHF)","0_Inland_WHF"="Inland 4 (WHF)",
+                                  "0_Coastal_CSI"="Coastal 2 (CSI)","4_Coastal_CSI"="Coastal 2 (CSI)"))+
     scale_x_discrete(labels = eggtadx)+
-    theme_hc(base_size = 20, base_family = "Times")+ 
+    theme_hc(base_size = 22, base_family = "Times")+ 
     theme(axis.line = element_line(colour = "black"))+
-    theme(axis.text= element_text(colour = "black")) +
-    theme(legend.position="none")
-  
+    theme(axis.text= element_text(colour = "black")) + theme(legend.position="none")
+  ) # Saved as 6x8 inch PDF
   return(geneplot_candidate)
 }
 
