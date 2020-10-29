@@ -110,7 +110,40 @@ vcftools --vcf $VCF \
 
 ```
 
-Next up, what is the genomic divergence (Fst) between coastal and inland frogs? Even though sample sizes are super low for individual comparisons, we make those as well as a sanity check.
+Next up, what is the genomic divergence (Fst) between coastal and inland frogs? Even though sample sizes are super low for individual comparisons, we make those as well as a sanity check. Here is a table of all the comparisons. This is the file `FstComparisons.txt` referenced in the script below it.
+
+```
+Comparison      Pop1    SearchTerm1     Pop2    SearchTerm2
+coastal-inland  coastal BOD1|BOD2|CSI|DQ        inland  PWL|WHF|LO|BL
+BL-BOD1 BL      BL      BOD1    BOD1
+BL-BOD2 BL      BL      BOD2    BOD2
+BL-CSI  BL      BL      CSI     CSI
+BL-DQ   BL      BL      DQ      DQ
+BL-LO   BL      BL      LO      LO
+BL-PWL  BL      BL      PWL     PWL
+BL-WHF  BL      BL      WHF     WHF
+BOD1-BOD2       BOD1    BOD1    BOD2    BOD2
+BOD1-CSI        BOD1    BOD1    CSI     CSI
+BOD1-DQ BOD1    BOD1    DQ      DQ
+BOD1-LO BOD1    BOD1    LO      LO
+BOD1-PWL        BOD1    BOD1    PWL     PWL
+BOD1-WHF        BOD1    BOD1    WHF     WHF
+BOD2-CSI        BOD2    BOD2    CSI     CSI
+BOD2-DQ BOD2    BOD2    DQ      DQ
+BOD2-LO BOD2    BOD2    LO      LO
+BOD2-PWL        BOD2    BOD2    PWL     PWL
+BOD2-WHF        BOD2    BOD2    WHF     WHF
+CSI-DQ  CSI     CSI     DQ      DQ
+CSI-LO  CSI     CSI     LO      LO
+CSI-PWL CSI     CSI     PWL     PWL
+CSI-WHF CSI     CSI     WHF     WHF
+DQ-LO   DQ      DQ      LO      LO
+DQ-PWL  DQ      DQ      PWL     PWL
+DQ-WHF  DQ      DQ      WHF     WHF
+LO-PWL  LO      LO      PWL     PWL
+LO-WHF  LO      LO      WHF     WHF
+PWL-WHF PWL     PWL     WHF     WHF
+```
 
 ```bash
 #!/bin/bash
