@@ -28,18 +28,16 @@ library(apeglm)
 require(survminer)
 require(survival)
 
-## Load plotting colors and aesthetics
+################################
+##    Plotting Aesthetics     ##
+################################
 
-# Plotting settings
-cols <- c("inland" = "darkseagreen4", "coastal" = "dodgerblue4")
-cols1 <- c("Inland" = "darkseagreen4", "Coastal" = "dodgerblue4")
 eggshape = c("0" = 19, "4" = 1)
-col.loc= c("inland"="darkseagreen","coastal" = "dodgerblue4")
-col.loc_cap= c("Inland"="darkseagreen", "Coastal" = "dodgerblue4")
+col.loc = cols = c("inland"="darkseagreen","coastal" = "dodgerblue4")
+col.loc_cap = cols1 = c("Inland"="darkseagreen", "Coastal" = "dodgerblue4")
 PCAcols = c("Inland" = "darkseagreen4", "Coastal" = "dodgerblue4")
 pop_shapes <- c("BL" = 21,"LO" = 22,"PWL" = 23,"WHF" = 24,"BOD" = 21, "CSI" = 24,"DQ" = 22, "LH" = 23)
-loc_shapes <- c("inland"=21,"coastal" = 22)
-trt_lines <- c("0_0"="dotted","0_6"="solid","4_4"= "dotdash" ,"4_6" ="dashed")
+loc_shapes <- c("inland"= 21,"coastal" = 22)
 line_type <- c("4_inland" = "dashed",  "0_inland"= "solid", "4_coastal"="dashed", "0_coastal"="solid")
 line_type_cap <- c("4_Inland" = "dashed",  "0_Inland"= "solid", "4_Coastal"="dashed", "0_Coastal"="solid")
 salinity <- c("0" = 15, "4" = 16,"6"=17)
@@ -54,7 +52,6 @@ shapesite = c("0_Inland_BL"=21,"4_Inland_BL"=21,
               "0_Inland_PWL" =23,"4_Inland_PWL" =23,
               "4_Inland_WHF"=24,"0_Inland_WHF"=24,
               "0_Coastal_CSI"=24,"4_Coastal_CSI"=24)
-
 colsite = c("0_Inland_BL"="darkseagreen" ,"4_Inland_BL"="darkseagreen" ,
             "0_Coastal_BOD"="dodgerblue4" , "4_Coastal_BOD"="dodgerblue4" ,
             "4_Coastal_DQ"="dodgerblue4" ,"0_Coastal_DQ"="dodgerblue4" ,
@@ -63,7 +60,6 @@ colsite = c("0_Inland_BL"="darkseagreen" ,"4_Inland_BL"="darkseagreen" ,
             "0_Inland_PWL" ="darkseagreen" ,"4_Inland_PWL" ="darkseagreen" ,
             "4_Inland_WHF"="darkseagreen" ,"0_Inland_WHF"="darkseagreen" ,
             "0_Coastal_CSI"="dodgerblue4" ,"4_Coastal_CSI"="dodgerblue4")
-pd <- position_dodge(0.4)
 
 ################################
 ## Tadpole Phenotype Analyses ##
