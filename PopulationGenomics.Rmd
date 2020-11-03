@@ -1,0 +1,338 @@
+---
+title: "Hyla cinerea population genomics"
+author: "Adam Stuckert"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(data.table)
+library(forcats)
+library(tidyverse)
+library(gridExtra)
+library(adegenet)
+library(usedist)
+library(ade4)
+library(MASS)
+library(vcfR)
+library(ggrepel)
+library(cowplot)
+library(extrafont)
+loadfonts(device = "win", quiet = TRUE)
+dir.create("figures/")
+```
+
+
+
+```{r sessioninfo}
+sessionInfo()
+```
+
+## Script purpose: produce plots of population structure
+
+Data input are from ADMIXTURE. 
+
+### Determine the number of genetic groups
+
+First off, which K value is the best? Examine delta CV values from admixture and plot them.
+
+```{r reference delta CV}
+cv <- read.table("data/CV_values.tab", sep = "\t")
+colnames(cv) <- c("K","CV")
+
+# add a delta column
+cv[,"delta"] <- 0
+cv$delta[2] <- abs(cv[2,2] - cv[1,2])
+cv$delta[3] <- abs(cv[3,2] - cv[2,2])
+cv$delta[4] <- abs(cv[4,2] - cv[3,2])
+cv$delta[5] <- abs(cv[5,2] - cv[4,2])
+#cv$delta[6] <- abs(cv[6,2] - cv[5,2]) # note still waiting on 6 to finish.
+
+# make a plot:
+Kvalplot <- ggplot(cv, aes(x = K, y = delta)) + geom_point() + geom_line() + theme_bw()
+
+Kvalplot
+
+ggsave("figures/deltaCV.png", width = 6, height = 4.5, dpi = 450)
+```
+
+
+
+### Make a structure plot
+
+According to the cross-validation scores, the best fit for our data is K = 3.
+
+
+```{r import references data K = 3, echo=FALSE}
+# import proportion data, label as p1 and p2
+props3 <- read.table("data/H_cinerea.filtered.merged.3.Q") 
+colnames(props3) <- c("geno1", "geno2", "geno3")
+
+# import fam file, in this case we only care about the first two columns of the .fam file, which are populatino and individual ID
+inds <- read.table("data/H_cinerea-temporary.fam")
+inds <- inds[,c(1,2)]
+colnames(inds) <- c("Population", "ID")
+inds$Population <- gsub(pattern = "^.*/", replacement = "", inds$Population)
+inds$Population <- gsub(pattern = "^._._", replacement = "", inds$Population)
+inds$Population <- gsub(pattern = "_.*$", replacement = "", inds$Population)
+inds$Population <- gsub(pattern = "BOD2", replacement = "LH", inds$Population)
+inds$Population <- gsub(pattern = "BOD1", replacement = "BOD", inds$Population)
+
+# merge datafreames
+struc3 <- cbind(inds, props3)
+
+# now I need to mutate the data for plotting
+struc3 <- struc3 %>% pivot_longer(cols = starts_with("geno"), names_to="genotype", values_to="probability")
+
+# reorder factors for our plot
+struc3$Population <- factor(struc3$Population, levels = c("BOD", "LH", "CSI", "DQ", "LO", "WHF", "BL", "PWL"))
+```
+
+Produce the plot.
+
+```{r, structure plot}
+
+k3plot <-
+  ggplot(struc3, aes(factor(ID), probability, fill = factor(genotype))) +
+  scale_fill_manual(values=c("#20639B", "#3CAEA3", "#F6D55C")) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~Population, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) + theme(legend.position = "none") +
+  theme(text = element_text(family = "Times New Roman"))
+k3plot
+
+ggsave("figures/K3.png", width = 6, height = 4.5, dpi = 450)
+```
+
+
+### PCA analysis
+
+```{R import VCF}
+# import vcf
+vcf <- read.vcfR("data/H_cinerea.filtered.vcf")
+
+# convert to genlight object
+gl <- vcfR2genlight(vcf)
+print(gl)
+
+gl$ind.names
+gl$loc.names[1:10]
+gl$chromosome[1:3]
+
+# fix individual
+gl$ind.names <- gsub(pattern = "^.*/", replacement = "", gl$ind.names)
+gl$ind.names <- gsub(pattern = ".sorted.bam", replacement = "", gl$ind.names)
+
+# locality data
+gl$pop <- as.factor(gl$ind.names)
+gl$pop <- as.factor(gsub(pattern = "^._._", replacement = "", gl$pop))
+gl$pop <- as.factor(gsub(pattern = "_.*$", replacement = "", gl$pop))
+
+# add coastal v inland
+popinfo <- gl$pop
+popinfo <- gsub(pattern = "(BOD1|BOD2|DQ|CSI)", replacement = "coastal", popinfo)
+popinfo <- gsub(pattern = "(BL|LO|PWL|WHF)", replacement = "inland", popinfo)
+help <- list(popinfo)
+gl$other <- help
+
+```
+
+
+Make some plots:
+
+```{r plot vcf data}
+#glPlot(gl, posi="bottomleft")
+
+# Now, let's compute the PCA on the SNP genotypes and plot it:
+pca1 <- glPca(gl, nf=4, parallel=F) # nf = number of PC axes to retain (here, 4)
+
+pca1 
+
+```
+
+
+
+```{r pca}
+
+plot(pca1$scores[,1], pca1$scores[,2], 
+     cex=2, pch=20, col=gl$pop, 
+     xlab="Principal Component 1", 
+     ylab="Principal Component 2")
+legend("bottom", 
+       legend=unique(gl$pop), 
+       pch=20,
+       col = unique(gl$pop))
+```
+
+Make a nice ggplot:
+
+```{R ggplot PCA}
+
+pcaData <- as.data.frame(pca1$scores)
+pcaData$pop <- gl$pop
+pcaData$loc <- popinfo
+pcaData$pop <- gsub(pattern = "BOD2", replacement = "LH", pcaData$pop)
+pcaData$pop <- gsub(pattern = "BOD1", replacement = "BOD", pcaData$pop)
+
+# set shapes for plot
+pop_shapes <- c("BL" = 21,"LO" = 22,"PWL" = 23,"WHF" = 24,"BOD" = 21, "CSI" = 24,"DQ" = 22, "LH" = 23)
+col.loc_cap = cols1 = c("inland"="darkseagreen", "coastal" = "dodgerblue4")
+
+variantPCA <- ggplot(pcaData, aes(x = PC1, y = PC2, fill = loc, shape = pop)) + 
+  geom_point(size = 3, show.legend = TRUE) +
+  scale_fill_manual(values = c("dodgerblue4", "darkseagreen")) +
+  scale_shape_manual(values = pop_shapes) + 
+  coord_fixed() + theme_bw() +
+  guides(fill = guide_legend(title = "Location", order = 1, override.aes = list(shape = 21)), shape = guide_legend(title = "Population", override.aes = list(linetype = 0), order = 2)) +
+  theme(text = element_text(family = "Times New Roman"))
+
+
+variantPCA
+
+```
+
+
+
+### Fst outliers...
+
+```{R Fst outliers}
+library(tidyverse)
+
+# read in the file
+fst <- read_tsv("data/coastal-inland.weir.fst")
+colnames(fst)[3] <- "fst"
+# capdown the headers
+colnames(fst) <- c("contig", "position", "fst")
+
+```
+
+Identify outliers!
+
+```{r outliers}
+
+# identify the 95% and 99% percentile
+quantile(fst$fst, c(0.975, 0.995), na.rm = T)
+
+# identify the 95% percentile
+my_threshold <- quantile(fst$fst, 0.995, na.rm = T)
+# make an outlier column in the data.frame
+fst2 <- fst %>% mutate(outlier = ifelse(fst > my_threshold, "outlier", "background"))
+
+##### add annotations
+# Uniref Annotations
+u1g <- fread("data/uniprot-reviewed_yes.tab", header = TRUE,sep="\t")
+u2g <- u1g[,c(1,2,5,4)]
+colnames(u2g) <- c("entry", "entry_name", "gene_name","protein_id")
+# Trim the gene name column 
+new_genes = separate(u2g, gene_name, into = c("gene_name", "trash"), sep = "\\s")
+new_genes$gene_name <- tolower(new_genes$gene_name) # lowercase
+# merge 
+a2g <- new_genes[,-4]
+# Add full annotation first
+ann1 <- read.table("data/cinerea.annotation.txt", header = FALSE, fill = TRUE)
+ann <- ann1[,c(1,3)]
+colnames(ann) <- c("target_id","entry")
+ann <- dplyr::left_join(ann, a2g, by = "entry")
+ann$gene_name <- tolower(ann$gene_name)
+colnames(ann)[1] <- "contig"
+
+
+# merge
+fst2 <- dplyr::left_join(fst2,ann,by="contig") 
+
+fst2 %>% group_by(outlier) %>% tally()
+
+ggplot(fst2, aes(contig, fst, colour = outlier)) + geom_point()
+```
+
+What are the outliers?
+
+```{r ID outliers}
+fst_out <- fst2 %>% filter(outlier == "outlier")
+
+
+# write to disk
+write.csv(fst_out, "OutlierData.csv", row.names = F)
+```
+
+
+What are the genes with extra high Fst values (> 0.75)?
+
+```{r hella outliers}
+
+# plot with 95 and 99%
+# identify the 95% and 99% percentile
+quantile(fst$fst, c(0.975, 0.995), na.rm = T)
+
+# identify the 95% percentile
+ninenine <- quantile(fst$fst, 0.995, na.rm = T)
+ninefive <- quantile(fst$fst, 0.975, na.rm = T)
+
+fst_75 <- fst2 %>% filter(fst > 0.75)
+
+fst_plot <- ggplot(fst2, aes(contig, fst)) + 
+  geom_point(alpha = 0.5, size = 0.75) +
+  theme(legend.position = "none", axis.title.x=element_blank(),axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
+  geom_text_repel(data = subset(fst2, fst > 0.75),
+    aes(label = gene_name, color = "black"),
+    size = 3.5,
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.3, "lines")
+  ) + geom_hline(yintercept=ninefive, linetype="dashed", color = "red", size = 1.25) +
+  geom_hline(yintercept=ninenine, color = "red", size = 1.25) +
+  theme(text = element_text(family = "Times New Roman"))
+  
+fst_plot
+```
+
+Quick examination of these genes/clusters...
+
+```{r hella outliers}
+
+fst_75 %>% group_by(contig) %>% tally()
+```
+
+Clearly we should try to ID all of these, but especially "NODE_20277_length_568_cov_35.175439_g15129_i0". Follow up on this: a targetted BLAST of this search yielded nothing. Additionally, I BLASTed this against a recently produced from genome and its predicted transcripts and this yielded no hits.
+
+
+
+
+
+
+
+
+### Combine all pop gen plots for manuscript
+
+```{r merged plot}
+leftcol <- plot_grid(k3plot, fst_plot, labels=c("A", "B") , ncol = 1, nrow = 2)
+plot_grid(leftcol, variantPCA,  labels=c("", "C"), ncol = 2, nrow = 1)
+ggsave("figures/PopGen.png", width = 8.69, height = 7, dpi = 600)
+
+```
+
+### Calculate per gene Fst values
+
+This will  calculate average Fst per transcript. 
+
+
+```{R average Fst}
+fst_summary <- fst %>% group_by(contig) %>%
+ summarise(avg = mean(fst), sd = sd(fst)) 
+
+print(paste0("Mean Fst per transcript = ", mean(fst_summary$avg)))
+print(paste0("SD Fst per transcript = ", sd(fst_summary$avg)))
+
+```
+
+
+
