@@ -268,10 +268,7 @@ printf "%s\t%s\n" "$K" "$CV" >> intermediate_files/ADMIXTURE/CV_values.tab
 done
 ```
 
-And then make a fancy structure plot:
-
-_There will eventually be R code here_
-
+We made figures of genetic clustering (a structure plot and a PCA plot) as well as examined Fst values and outliers in a [subsequent R script](https://github.com/malbecker/Saltomics/blob/master/PopulationGenomics.Rmd).
 
 
 
