@@ -219,7 +219,10 @@ colnames(fst) <- c("contig", "position", "fst")
 Identify outliers!
 
 ```{r outliers}
-
+# first, drop all NA values
+fst <- fst %>% filter(fst != "NaN")
+# next make all negative values a 0
+fst$fst <- ifelse(fst$fst < 0, 0, fst$fst)
 # identify the 95% and 99% percentile
 quantile(fst$fst, c(0.975, 0.995), na.rm = T)
 
