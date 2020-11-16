@@ -68,7 +68,7 @@ colsite = c("0_Inland_BL"="darkseagreen" ,"4_Inland_BL"="darkseagreen" ,
 ######## Load Datasets #########
 
 # Set working directory
-setwd("~/Desktop/Work/DataSets/Tadpole Plasticity_2017/")
+setwd("~/Documents/GitHub/Saltomics/data/")
 
 # Egg developmental data 
 egg = read.csv("Egg_devel.csv")
@@ -161,15 +161,15 @@ tadacc6$weight = rep(50, nrow(tadacc6))
 # Are there differences in overall tadpole survival on day 6? 
 
 c1 = glmer(prop.surv ~ eggsal * loc * target_sal + (1|pop), # Changed optimizer to improve model convergence
-            data=tadacc6, family = binomial(), weights = weight, glmerControl(optimizer = "bobyqa")) 
+            data=tadacc6, family = binomial(), weights = weight, glmerControl(optimizer = "bobyqa"),na.action="na.exclude") 
 c2 = glmer(prop.surv ~ eggsal + loc + target_sal + (1|pop), 
-             data=tadacc6, family = binomial(), weights = weight, glmerControl(optimizer = "bobyqa"))
+             data=tadacc6, family = binomial(), weights = weight, glmerControl(optimizer = "bobyqa"),na.action="na.exclude")
 c3 = glmer(prop.surv ~ 1 * loc * target_sal + (1|pop), 
-            data=tadacc6, family = binomial(),  weights = weight, glmerControl(optimizer = "bobyqa"))
+            data=tadacc6, family = binomial(),  weights = weight, glmerControl(optimizer = "bobyqa"),na.action="na.exclude")
 c4 = glmer(prop.surv ~ eggsal * 1 * target_sal + (1|pop), 
-            data=tadacc6, family = binomial(),  weights = weight, glmerControl(optimizer = "bobyqa"))
+            data=tadacc6, family = binomial(),  weights = weight, glmerControl(optimizer = "bobyqa"),na.action="na.exclude")
 c5 = glmer(prop.surv ~ eggsal * loc * 1 + (1|pop), 
-            data=tadacc6, family = binomial(),  weights = weight, glmerControl(optimizer = "bobyqa"))
+            data=tadacc6, family = binomial(),  weights = weight, glmerControl(optimizer = "bobyqa"),na.action="na.exclude")
 anova(c1,c2,test="Chisq") # Yes, significant interaction
 anova(c1,c3,test="Chisq") # Significant impact of egg salinity
 anova(c1,c4,test="Chisq") # Significant impact of location
@@ -194,6 +194,7 @@ ggplot(tadacc6,aes(x=factor(target_sal), y=prop.surv, group= factor(eggloc)))+
   theme(axis.line = element_line(colour = "black"))+
   theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
+
 
 ######## Tadpole Survival Through Time #########
 
@@ -230,9 +231,14 @@ ggplot(data = sumdat1, aes(x=factor(time),y=surv,group = eggloc,colour = loc,sha
   ylab("Survival in 12ppt (Target Salinity)")+
   theme(legend.position="none")
 
+(summs = sumdat1 %>%
+    group_by(eggsal) %>%
+    summarize("mean" = mean(surv, na.rm = TRUE)))
+
 
 ######## Tadpole Length #########
 
+tadphysio$EggEnv. = factor(tadphysio$EggEnv)
 d1 = lmer(log(Length) ~ EggEnv. * TadEnv * Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
 d2 = lmer(log(Length) ~ EggEnv. + TadEnv + Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
 d3 = lmer(log(Length) ~ 1 + TadEnv + Loc + (1|Cup) + (1|Pop), data = tadphysio, na.action="na.exclude")
@@ -241,13 +247,13 @@ d5 = lmer(log(Length) ~ EggEnv. + 1 + Loc + (1|Cup) + (1|Pop), data = tadphysio,
 
 anova(d1,d2) # No interaction
 anova(d2,d3) # No Effect of Embryonic Salinity 
-anova(d2,d4) # Marginal effect of location(p = 0.06)
+anova(d2,d4) # Marginal effect of location (p = 0.06)
 anova(d2,d5) # Effect of tadpole environment
 
 # Plot (Figure 3a)
 tadphysio$predicted = exp(predict(d2))
-tadphysio$eggloc = paste(tadphysio$EggEnv.,tadphysio$Loc, sep="_")
-tadphysio$eggpop = paste(tadphysio$EggEnv.,tadphysio$Pop, sep="_")
+tadphysio$eggloc = paste(tadphysio$EggEnv,tadphysio$Loc, sep="_")
+tadphysio$eggpop = paste(tadphysio$EggEnv,tadphysio$Pop, sep="_")
 
 ggplot(tadphysio,aes(x=factor(TadEnv), y=Length, group= factor(eggloc)))+
   xlab("Target Salinity of Tadpole Environment (ppt)") +
