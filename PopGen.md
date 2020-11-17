@@ -283,6 +283,10 @@ for tig in `cat contigs.txt`; do cat tmp_plink/${tig}.bim; done > plink_merged/H
 awk {'printf ("0\t%s\t%s\t%s\t%s\t%s\t\n", $1, $3, $4, $5, $6)'} H_cinerea.filtered.merged.bim > tmp
 mv tmp H_cinerea.filtered.merged.bim 
 
+## All important cleanup of intermediate files:
+rm -rf tmp_plink/
+rm -rf tmp_vcfs/
+
 ```
 
 Now we can run ADMIXTURE.
