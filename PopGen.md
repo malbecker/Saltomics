@@ -262,7 +262,9 @@ mkdir tmp_vcfs/
 mkdir tmp_plink/
 
 # pull out each contig into its own vcf
-for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} > tmp_vcfs/${tig}.vcf; done
+for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep -v "#" | shuf | head -n1 > tmp_vcfs/${tig}.txt; done
+for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep "#" > tmp_vcfs/${tig}.header; done
+for tig in `cat contigs.txt`; do cat tmp_vcfs/${tig}.header tmp_vcfs/${tig}.txt > tmp_vcfs/${tig}.vcf; done
 
 # make each contig vcf into the appropriate bed/bim/fam file format
 for tig in `cat contigs.txt`; do /mnt/lustre/macmaneslab/ams1236/software/plink2 --double-id --allow-extra-chr --vcf tmp_vcfs/${tig}.vcf --make-bed --out tmp_plink/${tig}; done
@@ -280,8 +282,8 @@ for tig in `cat contigs.txt`; do cat tmp_plink/${tig}.bim; done > plink_merged/H
 (echo -en "\x6C\x1B\x01"; for tig in `cat contigs.txt`; do tail -c +4 tmp_plink/${tig}.bed; done) > plink_merged/H_cinerea.filtered.merged.bed
 
 # apparently ADMIXTURE only works with standard chromosome names (integers, X, Y, etc). So here is some more bullshit that changes column 1 to 0 (unknown chromosome), then changes column 2 to what was column 1 (ie the contig id). This then solves our issues with too many contig IDs, etc and we can get ADMIXTURE to run, finally.
-awk {'printf ("0\t%s\t%s\t%s\t%s\t%s\t\n", $1, $3, $4, $5, $6)'} H_cinerea.filtered.merged.bim > tmp
-mv tmp H_cinerea.filtered.merged.bim 
+awk {'printf ("0\t%s\t%s\t%s\t%s\t%s\t\n", $1, $3, $4, $5, $6)'} plink_merged/H_cinerea.filtered.merged.bim > tmp
+mv tmp plink_merged/H_cinerea.filtered.merged.bim 
 
 ## All important cleanup of intermediate files:
 rm -rf tmp_plink/
