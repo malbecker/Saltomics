@@ -209,6 +209,8 @@ rm ${OUTDIR}/*fst.log
 We also want to calculate nucleotide diversity (pi).
 
 ```bash
+#!/bin/bash
+
 VCF="intermediate_files/vcfs/H_cinerea.filtered.vcf"  # change to filtered file later.
 OUTDIR="intermediate_files/pi"
 
@@ -218,17 +220,17 @@ mkdir $OUTDIR
 pops=$(bcftools query -l intermediate_files/vcfs/H_cinerea.filtered.vcf | cut -d/ -f3 | cut -d_ -f3 | sort | uniq)
 
 # prep output file!
-printf "Population\tMean_pi\tSD_pi\tSample_size\n" > Pivalues.tsv
+printf "Population\tMean_pi\tSD_pi\tSample_size\n" > Pivalues.adjustedperbase.tsv
 
 for pop in $pops
 do
-	echo calculating pi for $pop
-	bcftools query -l $VCF | grep $pop > ${OUTDIR}/$pop.txt
-	vcftools --vcf $VCF --keep ${OUTDIR}/$pop.txt --site-pi --out ${OUTDIR}/$pop.pi.txt
-	mean=$(grep -v "nan" ${OUTDIR}/$pop.pi.txt.sites.pi | awk '{sum+=$3} END {print sum/(NR - 1)}')
-	sd=$(grep -v "nan" ${OUTDIR}/$pop.pi.txt.sites.pi | awk '{sum+=$3; sumsq+=$3*$3} END {print sqrt(sumsq/(NR - 1) - (sum/(NR - 1))^2)}')
-	N=$(grep "Individuals" ${OUTDIR}/$pop.pi.txt.log | cut -f4 -d " ")
-	printf "%s\t%s\t%s\t%s\n" "$pop" "$mean" "$sd" "$N" >> Pivalues.tsv
+        echo calculating pi for $pop
+        bcftools query -l $VCF | grep $pop > ${OUTDIR}/$pop.txt
+        vcftools --vcf $VCF --keep ${OUTDIR}/$pop.txt --site-pi --out ${OUTDIR}/$pop.pi.txt
+        mean=$(grep -v "nan" ${OUTDIR}/$pop.pi.txt.sites.pi | awk '{sum+=$3} END {print sum/48745711}')
+        sd=$(grep -v "nan" ${OUTDIR}/$pop.pi.txt.sites.pi | awk '{sum+=$3; sumsq+=$3*$3} END {print sqrt(sumsq/48745711 - (sum/48745711)^2)}')
+        N=$(grep "Individuals" ${OUTDIR}/$pop.pi.txt.log | cut -f4 -d " ")
+        printf "%s\t%s\t%s\t%s\n" "$pop" "$mean" "$sd" "$N" >> Pivalues.adjustedperbase.tsv
 done
 
 ##### coastal inland comparison
@@ -237,18 +239,57 @@ bcftools query -l $VCF | grep -E "BOD|CSI|DQ" > ${OUTDIR}/coastal.pop.txt
 bcftools query -l $VCF | grep -E "PWL|WHF|LO|BL" > ${OUTDIR}/inland.pop.txt
 
 echo run pi calculations for coastal and inland
-vcftools --vcf $VCF --keep ${OUTDIR}/coastal.pop.txt --site-pi --out ${OUTDIR}/coastal.pi.txt 
-vcftools --vcf $VCF --keep ${OUTDIR}/inland.pop.txt --site-pi --out ${OUTDIR}/inland.pi.txt 
+vcftools --vcf $VCF --keep ${OUTDIR}/coastal.pop.txt --site-pi --out ${OUTDIR}/coastal.pi.txt
+vcftools --vcf $VCF --keep ${OUTDIR}/inland.pop.txt --site-pi --out ${OUTDIR}/inland.pi.txt
 
 
 pops="coastal inland"
 for pop in $pops
 do
-	mean=$(awk '{sum+=$3} END {print sum/(NR - 1)}' ${OUTDIR}/$pop.pi.txt.sites.pi)
-	sd=$(awk '{sum+=$3; sumsq+=$3*$3} END {print sqrt(sumsq/(NR - 1) - (sum/(NR - 1))^2)}' ${OUTDIR}/$pop.pi.txt.sites.pi)
-	N=$(grep "Individuals" ${OUTDIR}/$pop.pi.txt.log | cut -f4 -d " ")
-	printf "%s\t%s\t%s\t%s\n" "$pop" "$mean" "$sd" "$N" >> Pivalues.tsv
+        mean=$(awk '{sum+=$3} END {print sum/48745711}' ${OUTDIR}/$pop.pi.txt.sites.pi)
+        sd=$(awk '{sum+=$3; sumsq+=$3*$3} END {print sqrt(sumsq/48745711 - (sum/48745711)^2)}' ${OUTDIR}/$pop.pi.txt.sites.pi)
+        N=$(grep "Individuals" ${OUTDIR}/$pop.pi.txt.log | cut -f4 -d " ")
+        printf "%s\t%s\t%s\t%s\n" "$pop" "$mean" "$sd" "$N" >> Pivalues.adjustedperbase.tsv
 done
+
+
+######## calculating nucleotide diversity without correcting for invariant and missing sites:
+
+pops=$(bcftools query -l intermediate_files/vcfs/H_cinerea.filtered.vcf | cut -d/ -f3 | cut -d_ -f3 | sort | uniq)
+
+# prep output file!
+printf "Population\tMean_pi\tSD_pi\tSample_size\n" > Pivalues.variantsitesonly.tst
+
+for pop in $pops
+do
+        echo calculating pi for $pop
+        bcftools query -l $VCF | grep $pop > ${OUTDIR}/$pop.txt
+        vcftools --vcf $VCF --keep ${OUTDIR}/$pop.txt --site-pi --out ${OUTDIR}/$pop.pi.txt
+        mean=$(grep -v "nan" ${OUTDIR}/$pop.pi.txt.sites.pi | awk '{sum+=$3} END {print sum/NR}')
+        sd=$(grep -v "nan" ${OUTDIR}/$pop.pi.txt.sites.pi | awk '{sum+=$3; sumsq+=$3*$3} END {print sqrt(sumsq/(NR -1) - (sum/(NR - 1))^2)}')
+        N=$(grep "Individuals" ${OUTDIR}/$pop.pi.txt.log | cut -f4 -d " ")
+        printf "%s\t%s\t%s\t%s\n" "$pop" "$mean" "$sd" "$N" >> Pivalues.variantsitesonly.tst
+done
+
+##### coastal inland comparison
+
+bcftools query -l $VCF | grep -E "BOD|CSI|DQ" > ${OUTDIR}/coastal.pop.txt
+bcftools query -l $VCF | grep -E "PWL|WHF|LO|BL" > ${OUTDIR}/inland.pop.txt
+
+echo run pi calculations for coastal and inland
+vcftools --vcf $VCF --keep ${OUTDIR}/coastal.pop.txt --site-pi --out ${OUTDIR}/coastal.pi.txt
+vcftools --vcf $VCF --keep ${OUTDIR}/inland.pop.txt --site-pi --out ${OUTDIR}/inland.pi.txt
+
+
+pops="coastal inland"
+for pop in $pops
+do
+        mean=$(awk '{sum+=$3} END {print sum/NR}' ${OUTDIR}/$pop.pi.txt.sites.pi)
+        sd=$(awk '{sum+=$3; sumsq+=$3*$3} END {print sqrt(sumsq/(NR -1) - (sum/(NR -1))^2)}' ${OUTDIR}/$pop.pi.txt.sites.pi)
+        N=$(grep "Individuals" ${OUTDIR}/$pop.pi.txt.log | cut -f4 -d " ")
+        printf "%s\t%s\t%s\t%s\n" "$pop" "$mean" "$sd" "$N" >> Pivalues.variantsitesonly.tsv
+done
+
 ```
 
 We obviously have to look at genetic structure. We want to run ADMIXTURE, but first we have to convert our data to a usable format via `plink2`. Because plink only accepts a certain number of contigs and we are over that, we have to do a bit of nonsense.
