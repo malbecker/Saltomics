@@ -295,12 +295,18 @@ done
 We obviously have to look at genetic structure. We want to run ADMIXTURE, but first we have to convert our data to a usable format via `plink2`. Because plink only accepts a certain number of contigs and we are over that, we have to do a bit of nonsense.
 
 ```bash
+#!/bin/bash
+
 cd intermediate_files/vcfs/
 
 grep "^##contig=<ID" H_cinerea.filtered.vcf | cut -f3 -d= | cut -f1 -d, | sort | uniq > contigs.txt
 
 mkdir tmp_vcfs/
 mkdir tmp_plink/
+
+# gzip and index vcf
+bgzip -c H_cinerea.filtered.vcf > H_cinerea.filtered.vcf.gz
+tabix -p vcf H_cinerea.filtered.vcf.gz
 
 # pull out each contig into its own vcf
 for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep -v "#" | shuf | head -n1 > tmp_vcfs/${tig}.txt; done
