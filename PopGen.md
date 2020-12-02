@@ -79,10 +79,40 @@ Then, I applied fairly stringent filtering, since the sample size is low and it 
 #SBATCH --cpus-per-task=24
 #SBATCH --exclude=node117,node118
 #SBATCH --output variantfiltering.log
-
 VCF="intermediate_files/vcfs/H_cinerea.variantsonly.vcf"
+TMP="intermediate_files/vcfs/tmp.vcf"
 OUT="intermediate_files/vcfs/H_cinerea.filtered.vcf"
 
+
+
+
+## Remove full sibs
+vcftools --indv intermediate_files/bams/0_6_DQ_2_2_26__GGTACCTT-GACGTCTT_L005.sorted.bam \
+        --indv intermediate_files/bams/0_0_BL_3_1_26__GGACTTGG-CGTCTGCG_L005.sorted.bam \
+        --indv intermediate_files/bams/0_0_BOD1_3_3_5__ATGTAAGT-CATAGAGT_L005.sorted.bam \
+        --indv intermediate_files/bams/0_6_BOD2_2_2_26__GCAGAATT-TGGCCGGT_L005.sorted.bam \
+        --indv intermediate_files/bams/0_0_LO_3_1_22__CCGCGGTT-CTAGCGCT_L005.sorted.bam \
+        --indv intermediate_files/bams/0_0_PWL_3_3_5__AAGTCCAA-TACTCATA_L005.sorted.bam \
+        --indv intermediate_files/bams/0_0_WHF_1_1_26__TTATAACC-TCGATATC_L005.sorted.bam \
+        --indv intermediate_files/bams/0_6_CSI_2_2_26__AACGTTCC-AGTACTCC_L005.sorted.bam \
+        --indv intermediate_files/bams/4_4_BL_6_1_31__TCTCTACT-GAACCGCG_L005.sorted.bam \
+        --indv intermediate_files/bams/4_6_BOD1_3_2_26__TCCAACGC-AAGTCCAA_L005.sorted.bam \
+        --indv intermediate_files/bams/4_6_BOD2_2_26__GGCATTCT-CAAGCTAG_L005.sorted.bam \
+        --indv intermediate_files/bams/4_6_CSI_1_2_26__TTACAGGA-GCTTGTCA_L005.sorted.bam \
+        --indv intermediate_files/bams/4_4_DQ_6_1_22__ATGAGGCC-CAATTAAC_L005.sorted.bam \
+        --indv intermediate_files/bams/4_6_LO_2_2_26__GGCTTAAG-GGTCACGA_L005.sorted.bam \
+        --indv intermediate_files/bams/4_6_PWL_2_3_5__AATCCGGA-AACTGTAG_L005.sorted.bam \
+        --indv intermediate_files/bams/4_6_WHF_3_2_26__TTGGACTC-CTGCTTCC_L005.sorted.bam \
+        --vcf $VCF --recode --out $TMP
+
+# rename file
+mv $TMP.recode.vcf $TMP
+
+### sanity check
+echo How many individuals are there?
+bcftools query -l $TMP | wc -l
+
+##### Filtering
 # description
 Description="
 
@@ -295,8 +325,6 @@ done
 We obviously have to look at genetic structure. We want to run ADMIXTURE, but first we have to convert our data to a usable format via `plink2`. Because plink only accepts a certain number of contigs and we are over that, we have to do a bit of nonsense.
 
 ```bash
-#!/bin/bash
-
 cd intermediate_files/vcfs/
 
 grep "^##contig=<ID" H_cinerea.filtered.vcf | cut -f3 -d= | cut -f1 -d, | sort | uniq > contigs.txt
@@ -308,33 +336,28 @@ mkdir tmp_plink/
 bgzip -c H_cinerea.filtered.vcf > H_cinerea.filtered.vcf.gz
 tabix -p vcf H_cinerea.filtered.vcf.gz
 
-# pull out each contig into its own vcf
+# pull out each contig, choose a random SNP, and put it into its own vcf
 for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep -v "#" | shuf | head -n1 > tmp_vcfs/${tig}.txt; done
-for tig in `cat contigs.txt`; do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep "#" > tmp_vcfs/${tig}.header; done
-for tig in `cat contigs.txt`; do cat tmp_vcfs/${tig}.header tmp_vcfs/${tig}.txt > tmp_vcfs/${tig}.vcf; done
+
+# pull out header
+do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep "#" > tmp_vcfs/vcfheader.txt
+
+# combine header with each contig vcf
+cat tmp_vcfs/vcfheader.txt > H_cinerea.filtered].merged.vcf
+for tig in `cat contigs.txt`; do cat tmp_vcfs/${tig}.header tmp_vcfs/${tig}.txt >> H_cinerea.filtered.merged.vcf; done
 
 # make each contig vcf into the appropriate bed/bim/fam file format
-for tig in `cat contigs.txt`; do /mnt/lustre/macmaneslab/ams1236/software/plink2 --double-id --allow-extra-chr --vcf tmp_vcfs/${tig}.vcf --make-bed --out tmp_plink/${tig}; done
+do /mnt/lustre/macmaneslab/ams1236/software/plink2 --threads 24 --double-id --allow-extra-chr --max-alleles 2 --vcf H_cinerea.filtered.merged.vcf --make-bed --out H_cinerea.filtered.merged
 
-# Now we have to concatenate them all together.
-mkdir plink_merged/
-# just the first fam file:
-first=$(head -n1 contigs.txt)
-cat tmp_plink/${first}.fam > plink_merged/H_cinerea.filtered.merged.fam
-
-# for loop for the bim files:
-for tig in `cat contigs.txt`; do cat tmp_plink/${tig}.bim; done > plink_merged/H_cinerea.filtered.merged.bim
-
-# for loop for the bed files:
-(echo -en "\x6C\x1B\x01"; for tig in `cat contigs.txt`; do tail -c +4 tmp_plink/${tig}.bed; done) > plink_merged/H_cinerea.filtered.merged.bed
 
 # apparently ADMIXTURE only works with standard chromosome names (integers, X, Y, etc). So here is some more bullshit that changes column 1 to 0 (unknown chromosome), then changes column 2 to what was column 1 (ie the contig id). This then solves our issues with too many contig IDs, etc and we can get ADMIXTURE to run, finally.
-awk {'printf ("0\t%s\t%s\t%s\t%s\t%s\t\n", $1, $3, $4, $5, $6)'} plink_merged/H_cinerea.filtered.merged.bim > tmp
-mv tmp plink_merged/H_cinerea.filtered.merged.bim 
+awk {'printf ("0\t%s\t%s\t%s\t%s\t%s\t\n", $1, $3, $4, $5, $6)'} plink_merged/H_cinerea.filtered.nosibs.merged.bim > tmp
+mv tmp plink_merged/H_cinerea.filtered.merged.bim
 
 ## All important cleanup of intermediate files:
 rm -rf tmp_plink/
 rm -rf tmp_vcfs/
+
 
 ```
 
