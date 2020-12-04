@@ -11,7 +11,6 @@
 
 library(sleuth)
 library(blme)
-library(nlme)
 library(optimx)
 library(reshape2)
 library(brglm)
@@ -90,7 +89,7 @@ survdat2 = read.csv("survdat2.csv")
 
 # Data wrangling
 egg1<-filter(egg, Age_adj<50) # Some eggs did not hatch - this removes all non-hatching eggs.
-egg$ppt <- as.factor(egg$ppt)
+egg1$ppt <- as.factor(egg1$ppt)
 
 # Is there a difference in egg development according to salinity or location?
 a1 <- lmer(log(stage) ~ Age_adj * ppt * Loc + (1|Pop), data = egg1)
@@ -98,10 +97,13 @@ a2 <- lmer(log(stage) ~ Age_adj + ppt + Loc + (1|Pop), data = egg1)
 a3 <- lmer(log(stage) ~ 1 + ppt + Loc + (1|Pop), data = egg1)
 a4 <- lmer(log(stage) ~ Age_adj + 1 + Loc + (1|Pop), data = egg1)
 a5 <- lmer(log(stage) ~ Age_adj + ppt + 1 + (1|Pop), data = egg1)
+a6 <- lmer(log(stage) ~ Age_adj + (1|Pop), data = egg1)
+
 anova(a1,a2) # Additive model is best
 anova(a2,a3) # Yes, differences according to age
 anova(a2,a4) # No difference according to salinity
 anova(a2,a5) # No differences according to location
+anova(a2,a6) # Best model is a6
 
 # Plot (not included in paper)
 ggplot(egg1,aes(x=Age_adj, y=stage, group= factor(Loc), colour =factor(Loc)))+
@@ -135,6 +137,10 @@ hatch$predicted = plogis(predict(b1))
 hatch$eggloc = paste(hatch$Egg_env,hatch$Loc, sep="_")
 hatch$eggpop = paste(hatch$Egg_env,hatch$Pop, sep="_")
 
+hatch %>% # To get effect size estimates
+  group_by(Egg_env, Loc) %>%
+  summarize(mean(predicted,na.rm = TRUE))
+
 ggplot(hatch,aes(x=Egg_env, y=prop.hatch, group= factor(eggloc)))+
   xlab("Salinity of Embryonic Environment (ppt)") +
   ylab("Proportion Embryos Hatched") +
@@ -151,7 +157,7 @@ ggplot(hatch,aes(x=Egg_env, y=prop.hatch, group= factor(eggloc)))+
 ######## Tadpole Survival on Day 6 #########
 
 # Data wrangling
-tadacc = tadacc1[-c(475:480),] #removes suspicious outlier inland clutch (uncertain of cause)
+tadacc = tadacc1[-c(475:480),] #removes entire suspicious outlier inland clutch (uncertain of cause)
 tadacc$eggsal = as.factor(tadacc$eggsal)
 tadacc$target_sal = as.factor(tadacc$target_sal)
 tadacc$prop.surv = (tadacc$survive/50) # Divides number in cup by starting density of 50 tads
@@ -195,6 +201,9 @@ ggplot(tadacc6,aes(x=factor(target_sal), y=prop.surv, group= factor(eggloc)))+
   theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
 
+tadacc6 %>% # To get effect size estimates
+  group_by(target_sal, eggsal, loc) %>%
+  summarize(mean(predicted,na.rm = TRUE))
 
 ######## Tadpole Survival Through Time #########
 
@@ -207,7 +216,12 @@ for(i in 1:nrow(survdat2)){ #Create binary column - 1 = alive at MM, 0 = dead at
 }
 
 # Kaplan-Meier Survival Estimates
-surv1 <- survfit(Surv(day,dead) ~ eggsal + loc + target_sal, data = survdat2) 
+surv1 <- survfit(Surv(day,dead) ~ eggsal + loc + target_sal, data = survdat2)
+surv2 <- survdiff(Surv(day,dead) ~ eggsal + loc + target_sal, data = survdat2)
+KP_sigval <- ezfun::sdp(surv2) #Pulls out overall significance
+1 - pchisq(surv2$chisq, length(surv2$n) - 1)
+summary(survfit(Surv(day,dead) ~ eggsal + loc + target_sal, data = survdat2))
+
 sumdat = surv_summary(surv1)
 sumdat$eggloc = paste(sumdat$eggsal,sumdat$loc,sep="_")
 
@@ -231,7 +245,8 @@ ggplot(data = sumdat1, aes(x=factor(time),y=surv,group = eggloc,colour = loc,sha
   ylab("Survival in 12ppt (Target Salinity)")+
   theme(legend.position="none")
 
-(summs = sumdat1 %>%
+# Summarize for effect size estimates
+(effect = sumdat1 %>%
     group_by(eggsal) %>%
     summarize("mean" = mean(surv, na.rm = TRUE)))
 
@@ -268,7 +283,6 @@ ggplot(tadphysio,aes(x=factor(TadEnv), y=Length, group= factor(eggloc)))+
   theme(axis.line = element_line(colour = "black"))+
   theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
-
 
 ######## Tadpole Plasma Osmolality #########
 
@@ -311,6 +325,10 @@ ggplot(tadphysio1,aes(x=factor(TadEnv), y=Osmo, group= factor(eggloc)))+
   theme(axis.text= element_text(colour = "black"))+
   theme(legend.position="none")
 
+# Summarize for effect size estimates
+(effect = tadphysio1 %>%
+    group_by(EggEnv,TadEnv,Loc) %>%
+    summarize("mean" = mean(predicted, na.rm = TRUE)))
 
 ######################################
 ## Tadpole Gene Expression Analyses ##
@@ -324,8 +342,8 @@ base_dir <- "~/Desktop/Work/DataSets/Saltomics"
 # Attach identifying information to folders and samples
 sample_id <- dir(file.path(base_dir, "kallisto_quants"))
 
-kal_dirs <- paste0("~/Desktop/Work/DataSets/Saltomics/kallisto_quants/",sample_id)
-samples <- read.csv("~/Desktop/Work/DataSets/Saltomics/omic_samples.csv", header = TRUE) # Sample meta-data
+kal_dirs <- paste0("kallisto_quants/",sample_id)
+samples <- read.csv("~/Desktop/omic_samples.csv", header = TRUE) # Sample meta-data
 samples$location = sub("inland","Inland",as.character(samples$location)) 
 samples$location = sub("coastal","Coastal", as.character(samples$location))
 
@@ -335,10 +353,12 @@ samples <- samples[order(samples$sample),] #Aligns samples data with sample_id d
 samples$path <- kal_dirs
 
 # Creates the table from kallisto
-so <- sleuth_prep(samples) 
+#so <- sleuth_prep(samples)  # 11/24/20 - Sleuth won't work on Molly's cpu (?!) so transferring counts from Adam's cpu.
 
 #Pull out data and format for downstream applications
-so1 = so[["obs_raw"]] # I want the not-normalized data
+#so1 = so[["obs_raw"]] # I want the not-normalized data
+so1 <- read.table("~/Desktop/CountDataFromSleuth.tsv",header = TRUE)
+
 so2 = full_join(so1,samples,by = "sample")
 
 # Prepare by building the design
@@ -350,10 +370,10 @@ samples$sample. <- paste(samples$egg,samples$tad,samples$population,samples$ind,
 so2$treatment <- paste(so2$egg, so2$tad, so2$location, sep = "_")
 so2$eggtad <- paste(so2$egg,so2$tad, sep="_")
 
-## Pull in Annovations
+## Pull in Annotations
 
 # Uniref Annotations
-u1g <- fread("~/Desktop/Work/DataSets/Saltomics/uniprot-reviewed_yes.tab", header = TRUE,sep="\t")
+u1g <- fread("~/Desktop/Work/DataSets/Saltomics/uniprot-reviewed_yes.tab", header = TRUE, sep="\t")
 u2g <- u1g[,c(1,2,5,4)]
 colnames(u2g) <- c("entry", "entry_name", "gene_name","protein_id")
 
@@ -407,7 +427,7 @@ dat3_transcript = dat3_transcript[,c(-1,-33,-34)]
 colnames(dat3_transcript) <- sub("X", "", colnames(dat3_transcript))
 dim(dat3_transcript) # 71,016
 
-## FOR PCA -- JUST ANNOTATED GENES ##
+## FOR PCA -- JUST ANNOTATED TRANSCRIPTS ##
 
 ## Create dataframe with counts
 so_anno$sample. = paste(so_anno$egg,so_anno$tad,so_anno$population,so_anno$ind,sep="_")
@@ -485,9 +505,9 @@ ggplot(pcaData, aes(x = PC1, y = PC2, shape = Population)) +
   xlab(paste0("PC1: ", percentVar[1], "% variance")) +
   ylab(paste0("PC2: ", percentVar[2], "% variance")) +
   scale_colour_manual(name = "Location",values = PCAcols)+
-  scale_linetype_manual(name = "Salinity Exposure", 
-                        labels = c("0ppt egg: 0ppt tad","0ppt egg: 6ppt tad","4ppt egg: 4ppt tad", "4ppt egg: 6ppt tad"), 
-                        values = trt_lines)+
+  #scale_linetype_manual(name = "Salinity Exposure", 
+  #                      labels = c("0ppt egg: 0ppt tad","0ppt egg: 6ppt tad","4ppt egg: 4ppt tad", "4ppt egg: 6ppt tad"), 
+  #                      values = trt_lines)+
   scale_fill_manual(values= PCAcols)+ guides(fill = FALSE) +
   scale_shape_manual(values = pop_shapes,
                      labels = c("Inland 1 (BL)", "Coastal 1 (BOD)", "Coastal 2 (CSI)","Coastal 3 (DQ)","Coastal 4 (LH)","Inland 2 (LO)","Inland 3 (PWL)","Inland 4 (WHF)")) + #guides(shape = FALSE) +
@@ -504,7 +524,7 @@ ggplot(pcaData, aes(x = PC1, y = PC2, shape = Population)) +
 # To identify DE genes
 gene_names <- so_anno[,c(1,4)]
 gene_names <- gene_names %>% unique()
-gene_names[gene_names$target_id == "NODE_1_length_16363_cov_4496.792504_g0_i0",] # To identify unnamed transcripts, use this.
+gene_names[gene_names$target_id == "R666850",] # To identify unnamed transcripts, use this.
 
 ## DESEQ ANALYSIS
 levels(dds_loc$location) <- c("Coastal", "Inland")
@@ -513,16 +533,16 @@ dds_loc$egg <- relevel(dds_loc$egg, ref = "0")
 dds_loc$tad <- relevel(dds_loc$tad, ref = "0")
 
 de_loc <- DESeq(dds_loc) 
-resultsNames(de_loc) # For Comparisons
+resultsNames(de_loc) # Pull names for specific comparisons
 
 # Location Comparison - Coastal vs. Inland
 loc_shrink <- lfcShrink(de_loc, coef="location_Coastal_vs_Inland", type="apeglm")
-sum(loc_shrink$padj < 0.05, na.rm=TRUE) # 633 DE genes
+sum(loc_shrink$padj < 0.05, na.rm=TRUE) # 637 DE genes
 loc_go <- data.frame(loc_shrink[,-1])
 loc_go <- rownames_to_column(loc_go, "target_id")
 loc_go1 <- left_join(loc_go, gene_names, by = "target_id")
 loc_go2 <- filter(loc_go1, padj <= 0.05)
-loc_go3 <- arrange(loc_go2, -log2FoldChange) # 2nd row is HBB3, use above code to find other missing values
+loc_go3 <- arrange(loc_go2, -log2FoldChange) # 4th row is HBB3, use above code to find other missing values
 
 # Egg Salinity Comparison - 4ppt vs 0ppt
 de_sal <- lfcShrink(de_loc, coef="egg_4_vs_0", type="apeglm")
@@ -562,11 +582,15 @@ de_interaction2 <- arrange(de_interaction2, -log2FoldChange)
 
 # Combine all into single dataset (Supplemental Material 1)
 all.genes = rbind(loc_go3,de_sal, de_sal2,de_interaction,de_interaction2,fill=TRUE)
-all.genes[all.genes$gene_name == "tjp3",] # To look at patterns of single genes
+all.genes[all.genes$target_id == "TRINITY_DN23787_c0_g2_i1",] # To look at patterns of single genes
+
+(gn = so_anno %>%
+  filter(target_id == "TRINITY_DN5992_c0_g2_i1") )
+unique(gn$target_id)
 
 # Plot genes of interest 
 
-genePlot =function(transcript_id,refdata){
+genePlot = function(transcript_id,refdata){
   
   target_gene = transcript_id
   gene_name = unique(refdata$gene_name[refdata$target_id == target_gene])
@@ -601,7 +625,7 @@ genePlot =function(transcript_id,refdata){
                                   "4_Inland_WHF"="Inland 4 (WHF)","0_Inland_WHF"="Inland 4 (WHF)",
                                   "0_Coastal_CSI"="Coastal 2 (CSI)","4_Coastal_CSI"="Coastal 2 (CSI)"))+
     scale_x_discrete(labels = eggtadx)+
-    theme_hc(base_size = 22, base_family = "Times")+ 
+    theme_hc(base_size = 12, base_family = "Times")+ 
     theme(axis.line = element_line(colour = "black"))+
     theme(axis.text= element_text(colour = "black")) + theme(legend.position="none")
   ) # Saved as 6x8 inch PDF
@@ -611,7 +635,20 @@ genePlot =function(transcript_id,refdata){
 # Ion Transporters
 (atp1b1 = genePlot("S668054",so_anno))
 (atp6v1g2 = genePlot("R666300",so_anno))
-(nalcn = genePlot("NODE_36985_length_332_cov_2.131313_g33311_i0",so_anno))
+
+(kcnf1 = genePlot("TRINITY_DN5992_c0_g2_i1",so_anno)) # Higher in coastal
+(nalcn = genePlot("NODE_36985_length_332_cov_2.131313_g33311_i0",so_anno)) # Lower in Coastal
+(scn1a = genePlot("TRINITY_DN27799_c0_g1_i1",so_anno)) # Lower in Coastal
+(scn3a = genePlot("NODE_26902_length_505_cov_2.010638_g23322_i0",so_anno)) # Lower in Coastal
+(scn8a = genePlot("NODE_32121_length_401_cov_2.174863_g28460_i0",so_anno)) # Lower in Coastal
+(scn9a = genePlot("TRINITY_DN18503_c0_g1_i1",so_anno)) # Lower in Coastal
+(atp6v1a = genePlot("TRINITY_DN338_c0_g2_i1",so_anno)) # 6ppt vs 0ppt
+(atp6v1g3 = genePlot("NODE_18031_length_656_cov_21.474210_g13194_i0",so_anno)) # 6ppt vs 0ppt
+(atp6v0d2 = genePlot("TRINITY_DN33252_c0_g1_i1",so_anno)) # 6ppt vs 0ppt
+(atp6v0a4 = genePlot("NODE_21057_length_541_cov_1.897119_g15829_i0",so_anno)) # 6ppt vs 0ppt
+(cacna2d2 = genePlot("TRINITY_DN3453_c0_g1_i1",so_anno)) # 6ppt vs 0ppt
+
+grid.arrange(kcnf1,nalcn,scn1a,scn3a,scn8a,scn9a,atp6v1a,atp6v1g3,atp6v0d2,atp6v0a4,cacna2d2,ncol=2)
 
 # Cell Adhesion 
 (cdh17 = genePlot("NODE_11566_length_1263_cov_5.210098_g9470_i0",so_anno))
@@ -626,6 +663,8 @@ genePlot =function(transcript_id,refdata){
 (eppk = genePlot("NODE_1284_length_3806_cov_9.718377_g1008_i0",so_anno))
 (tjp3 = genePlot("NODE_8282_length_1405_cov_2.746667_g5806_i0",so_anno))
 
+grid.arrange(cdh17,cdh23,cdh26,cldn1,pkhd1l1,ocln,pkp3,gjb3,ppl,eppk,tjp3,ncol = 2)
+
 # Cytoskeleton
 (odc1a = genePlot("NODE_13734_length_1071_cov_78.253861_g4759_i1",so_anno))
 (oaz = genePlot("R671092",so_anno))
@@ -639,6 +678,8 @@ genePlot =function(transcript_id,refdata){
 (pkhd1l1 = genePlot("TRINITY_DN4134_c0_g4_i1",so_anno))
 (cadhf = genePlot("NODE_1237_length_3404_cov_7.922365_g826_i0",so_anno))
 (scel = genePlot("NODE_3453_length_2621_cov_5.753674_g2788_i0",so_anno))
+grid.arrange(col14a,actn4,myo1e,lama3,arhgap8,pkhd1l1,cadhf,scel,ncol = 2)
+
 
 # Glycerol
 (gpd1 = genePlot("NODE_10087_length_1412_cov_1023.620915_g8225_i0",so_anno))
