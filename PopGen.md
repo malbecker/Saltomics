@@ -346,7 +346,10 @@ do bcftools view H_cinerea.filtered.vcf.gz ${tig} | grep "#" > tmp_vcfs/vcfheade
 cat tmp_vcfs/vcfheader.txt > H_cinerea.filtered].merged.vcf
 for tig in `cat contigs.txt`; do cat tmp_vcfs/${tig}.header tmp_vcfs/${tig}.txt >> H_cinerea.filtered.merged.vcf; done
 
-# make each contig vcf into the appropriate bed/bim/fam file format
+# remove headers for absent contigs, to enable a plink2 run
+./extractcontigheaders.py > H_cinerea.filtered.merged.vcf
+
+# make vcf into the appropriate bed/bim/fam file format
 do /mnt/lustre/macmaneslab/ams1236/software/plink2 --threads 24 --double-id --allow-extra-chr --max-alleles 2 --vcf H_cinerea.filtered.merged.vcf --make-bed --out H_cinerea.filtered.merged
 
 
@@ -357,6 +360,20 @@ mv tmp plink_merged/H_cinerea.filtered.merged.bim
 ## All important cleanup of intermediate files:
 rm -rf tmp_plink/
 rm -rf tmp_vcfs/
+```
+
+And this is the python script called above:
+```
+#! /usr/bin/env python3
+
+with open("tmp_vcfs/vcfheader.txt", "r") as file:
+    contigheaders = [line.strip() for line in file]
+
+with open("test", "r") as contigs:
+    for contig in (line.strip() for line in contigs):
+        for entry in contigheaders:
+            if contig in entry:
+                print(entry)
 
 
 ```
