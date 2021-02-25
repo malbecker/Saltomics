@@ -1,7 +1,9 @@
 # Saltomics
 
-This is for stuff. Having to do with Salt. Maybe some frogs, maybe not. 
+Data, code, and supplemental materials for Molecular mechanisms of local adaptation for salt-tolerance in a treefrog 
 
+Authors: 
 
+Molly A. Albecker, Adam M. M. Stuckert, Christopher N. Balakrishnan, Michael W. McCoy
 
-![lobstah](https://github.com/malbecker/Saltomics/blob/master/SupplementalDocuments/.lobstah.jpg.icloud)
+For any questions or accessibility problems please contact Molly Albecker at malbecker@gmail.com. 
